@@ -1,0 +1,133 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         Role      @default(USER)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  bookings     Booking[]
+
+  @@index([email])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// ─────────────────────────────────────────
+// STATIONS
+// ─────────────────────────────────────────
+model Station {
+  id        String  @id            // e.g. "CDG"
+  name      String  @unique        // e.g. "Paris"
+  terminal  String                 // e.g. "Bercy Seine"
+  lat       Float
+  lng       Float
+
+  departures Trip[]  @relation("DepartureStation")
+  arrivals   Trip[]  @relation("ArrivalStation")
+}
+
+// ─────────────────────────────────────────
+// TRIPS
+// ─────────────────────────────────────────
+model Trip {
+  id          String   @id @default(cuid())
+  fromId      String
+  toId        String
+  depTime     String   // "07:15"
+  arrTime     String   // "11:45"
+  durationMin Int      // minutes
+  stops       Int      @default(0)
+  price       Float    // unit price per passenger
+  company     String
+  totalSeats  Int      @default(40)
+  amenities   String[] // ["wifi","ac","usb"]
+  rating      Float    @default(4.0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  from         Station   @relation("DepartureStation", fields: [fromId], references: [id])
+  to           Station   @relation("ArrivalStation",   fields: [toId],   references: [id])
+  bookings     Booking[]
+  seatSlots    SeatSlot[]
+
+  @@index([fromId, toId])
+}
+
+// ─────────────────────────────────────────
+// SEAT SLOTS  (one row per seat per trip)
+// ─────────────────────────────────────────
+model SeatSlot {
+  id       String     @id @default(cuid())
+  tripId   String
+  seatNum  Int        // 1-40
+  status   SeatStatus @default(FREE)
+
+  trip     Trip     @relation(fields: [tripId], references: [id])
+  booking  Booking? @relation(fields: [bookingId], references: [id])
+  bookingId String?
+
+  @@unique([tripId, seatNum])
+  @@index([tripId, status])
+}
+
+enum SeatStatus {
+  FREE
+  TAKEN
+}
+
+// ─────────────────────────────────────────
+// BOOKINGS
+// ─────────────────────────────────────────
+model Booking {
+  id            String        @id   // "BG" + nanoid
+  tripId        String
+  userId        String?
+  seatNum       Int
+  pax           Int
+  paymentMethod PaymentMethod
+  totalPrice    Float
+  travelDate    String        // "2026-03-15"
+  status        BookingStatus @default(CONFIRMED)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  cancelledAt   DateTime?
+
+  trip          Trip        @relation(fields: [tripId], references: [id])
+  user          User?       @relation(fields: [userId], references: [id])
+  seatSlots     SeatSlot[]
+
+  @@index([userId])
+  @@index([tripId])
+  @@index([status])
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  card
+  paypal
+  applepay
+  googlepay
+}

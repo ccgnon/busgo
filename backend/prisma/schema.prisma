@@ -1,0 +1,215 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String      @id @default(cuid())
+  email          String      @unique
+  name           String
+  passwordHash   String
+  role           Role        @default(USER)
+  phone          String?
+  agencyId       String?
+  referralCode   String?     @unique
+  referredBy     String?
+  loyaltyPoints  Int         @default(0)
+  loyaltyTier    LoyaltyTier @default(BRONZE)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  bookings       Booking[]
+  agency         Agency?     @relation(fields: [agencyId], references: [id])
+  referrals      Referral[]  @relation("ReferrerUser")
+  referralUsed   Referral?   @relation("ReferredUser")
+  @@index([email])
+  @@index([referralCode])
+}
+
+enum Role {
+  USER
+  ADMIN
+  AGENCY
+}
+
+enum LoyaltyTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+model Agency {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  email       String   @unique
+  phone       String?
+  logo        String?
+  description String?
+  active      Boolean  @default(true)
+  verified    Boolean  @default(false)
+  commission  Float    @default(0.04)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+  trips       Trip[]
+}
+
+model Station {
+  id         String @id
+  name       String @unique
+  terminal   String
+  lat        Float
+  lng        Float
+  city       String @default("")
+  region     String @default("")
+  departures Trip[] @relation("DepartureStation")
+  arrivals   Trip[] @relation("ArrivalStation")
+}
+
+model Trip {
+  id           String   @id @default(cuid())
+  fromId       String
+  toId         String
+  depTime      String
+  arrTime      String
+  durationMin  Int
+  stops        Int      @default(0)
+  price        Float
+  priceFCFA    Float    @default(0)
+  serviceFee   Float    @default(500)
+  dynamicPrice Boolean  @default(false)
+  company      String
+  agencyId     String?
+  totalSeats   Int      @default(70)
+  amenities    String[]
+  rating       Float    @default(4.0)
+  ratingCount  Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  from         Station    @relation("DepartureStation", fields: [fromId], references: [id])
+  to           Station    @relation("ArrivalStation",   fields: [toId],   references: [id])
+  agency       Agency?    @relation(fields: [agencyId], references: [id])
+  bookings     Booking[]
+  seatSlots    SeatSlot[]
+  reviews      Review[]
+  @@index([fromId, toId])
+  @@index([agencyId])
+}
+
+model SeatSlot {
+  id        String     @id @default(cuid())
+  tripId    String
+  seatNum   Int
+  status    SeatStatus @default(FREE)
+  trip      Trip       @relation(fields: [tripId], references: [id])
+  booking   Booking?   @relation(fields: [bookingId], references: [id])
+  bookingId String?
+  @@unique([tripId, seatNum])
+  @@index([tripId, status])
+}
+
+enum SeatStatus {
+  FREE
+  TAKEN
+}
+
+model Booking {
+  id             String        @id
+  tripId         String
+  userId         String?
+  seatNum        Int
+  pax            Int
+  paymentMethod  PaymentMethod
+  unitPrice      Float         @default(0)
+  serviceFee     Float         @default(500)
+  totalPrice     Float
+  travelDate     String
+  passengerName  String?
+  passengerPhone String?
+  validationCode String?
+  validatedAt    DateTime?
+  smsSentAt      DateTime?
+  pdfUrl         String?
+  status         BookingStatus @default(CONFIRMED)
+  loyaltyEarned  Int           @default(0)
+  referralCode   String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  cancelledAt    DateTime?
+  trip           Trip          @relation(fields: [tripId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id])
+  seatSlots      SeatSlot[]
+  review         Review?
+  @@index([userId])
+  @@index([tripId])
+  @@index([status])
+  @@index([validationCode])
+  @@index([passengerPhone])
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  VALIDATED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  card
+  paypal
+  applepay
+  googlepay
+  mtn_momo
+  orange_money
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  bookingId String   @unique
+  tripId    String
+  userId    String?
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+  trip      Trip     @relation(fields: [tripId], references: [id])
+  @@index([tripId])
+}
+
+model Referral {
+  id          String   @id @default(cuid())
+  referrerId  String
+  referredId  String   @unique
+  rewardGiven Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  referrer    User     @relation("ReferrerUser", fields: [referrerId], references: [id])
+  referred    User     @relation("ReferredUser", fields: [referredId], references: [id])
+  @@index([referrerId])
+}
+
+model LoyaltyLog {
+  id        String   @id @default(cuid())
+  userId    String
+  points    Int
+  reason    String
+  createdAt DateTime @default(now())
+  @@index([userId])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String?
+  phone     String?
+  type      String
+  message   String
+  sent      Boolean   @default(false)
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  @@index([userId])
+}
