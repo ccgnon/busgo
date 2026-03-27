@@ -29,7 +29,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "node-cron": "^3.0.3",
-    "nodemailer": "^8.0.2",
+    "nodemailer": "^8.0.4",
     "pdfkit": "^0.14.0",
     "qrcode": "^1.5.3",
     "uuid": "^9.0.0"
