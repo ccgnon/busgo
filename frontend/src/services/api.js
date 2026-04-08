@@ -1,91 +1,72 @@
-// src/services/api.js
-import axios from 'axios';
+const BASE = '/api';
 
-const api = axios.create({
-  baseURL: '/api',
-  timeout: 10000,
-  headers: { 'Content-Type': 'application/json' },
-});
+function headers() {
+  const t = localStorage.getItem('busgo_token');
+  return {
+    'Content-Type': 'application/json',
+    ...(t ? { Authorization: `Bearer ${t}` } : {}),
+  };
+}
 
-// Attach JWT automatically
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('busgo_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+async function req(method, path, body) {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: headers(),
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const data = await res.json();
+  if (!res.ok) return Promise.reject(data);
+  return data;
+}
 
-// Normalize errors
-api.interceptors.response.use(
-  res => res.data,
-  err => Promise.reject(err.response?.data || { error: 'Erreur réseau' })
-);
+const get  = path       => req('GET',    path);
+const post = (path, b)  => req('POST',   path, b);
+const patch= (path, b)  => req('PATCH',  path, b);
+const del  = path       => req('DELETE', path);
 
-// ── Trips ─────────────────────────────────────────────────
+// ── Auth ───────────────────────────────────────────────────────────────────
+export const login    = (email, password) => post('/auth/login',    { email, password });
+export const register = (email, password, name) => post('/auth/register', { email, password, name });
+export const getMe    = ()                => get('/auth/me');
+
+// ── Trips ──────────────────────────────────────────────────────────────────
 export const searchTrips = (from, to, date, pax) =>
-  api.get('/trips/search', { params: { from, to, date, pax } });
+  get(`/trips/search?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&date=${date}&pax=${pax}`);
+export const getTrip     = id => get(`/trips/${id}`);
+export const getStations = () => get('/trips/stations');
 
-export const getTrip = (id) =>
-  api.get(`/trips/${id}`);
+// ── Bookings ───────────────────────────────────────────────────────────────
+export const createBooking = payload => post('/bookings', payload);
+export const getBooking    = id      => get(`/bookings/${id}`);
+export const getMyBookings = ()      => get('/bookings');
+export const cancelBooking = id      => del(`/bookings/${id}`);
+export const validateBooking = (id, code) => post(`/bookings/${id}/validate`, { code });
 
-export const getStations = () =>
-  api.get('/trips/stations');
+// ── Loyalty ────────────────────────────────────────────────────────────────
+export const getLoyalty    = ()     => get('/loyalty/me');
+export const checkReferral = code   => get(`/loyalty/referral/${code}`);
 
-// ── Bookings ──────────────────────────────────────────────
-export const createBooking = (payload) =>
-  api.post('/bookings', payload);
+// ── Reviews ────────────────────────────────────────────────────────────────
+export const submitReview   = data   => post('/reviews', data);
+export const getTripReviews = tripId => get(`/reviews/trip/${tripId}`);
 
-export const getBooking = (id) =>
-  api.get(`/bookings/${id}`);
+// ── Admin ──────────────────────────────────────────────────────────────────
+export const adminStats        = ()         => get('/admin/stats');
+export const adminBookings     = (p = {})   => get(`/admin/bookings?${new URLSearchParams(p)}`);
+export const adminUsers        = ()         => get('/admin/users');
+export const adminPatchUser    = (id, d)    => patch(`/admin/users/${id}`, d);
+export const adminAgencies     = ()         => get('/admin/agencies');
+export const adminCreateAgency = d          => post('/admin/agencies', d);
+export const adminPatchAgency  = (id, d)    => patch(`/admin/agencies/${id}`, d);
+export const adminTrips        = (p = {})   => get(`/admin/trips?${new URLSearchParams(p)}`);
+export const adminPatchTrip    = (id, d)    => patch(`/admin/trips/${id}`, d);
+export const adminDeleteTrip   = id         => del(`/admin/trips/${id}`);
 
-export const getMyBookings = () =>
-  api.get('/bookings');
-
-export const cancelBooking = (id) =>
-  api.delete(`/bookings/${id}`);
-
-// ── Auth ──────────────────────────────────────────────────
-export const login = (email, password) =>
-  api.post('/auth/login', { email, password });
-
-export const register = (email, password, name) =>
-  api.post('/auth/register', { email, password, name });
-
-export const getMe = () =>
-  api.get('/auth/me');
-
-export default api;
-
-// ── Admin ─────────────────────────────────────────────────────────────────────
-export const adminStats     = ()        => api.get('/admin/stats');
-export const adminBookings  = (p)       => api.get('/admin/bookings', { params: p });
-export const adminUsers     = ()        => api.get('/admin/users');
-export const adminPatchUser = (id, d)   => api.patch(`/admin/users/${id}`, d);
-export const adminAgencies  = ()        => api.get('/admin/agencies');
-export const adminCreateAgency = (d)    => api.post('/admin/agencies', d);
-export const adminPatchAgency  = (id,d) => api.patch(`/admin/agencies/${id}`, d);
-export const adminTrips     = (p)       => api.get('/admin/trips', { params: p });
-export const adminPatchTrip = (id, d)   => api.patch(`/admin/trips/${id}`, d);
-export const adminDeleteTrip= (id)      => api.delete(`/admin/trips/${id}`);
-
-// ── Agency ────────────────────────────────────────────────────────────────────
-export const agencyMe       = ()        => api.get('/agency/me');
-export const agencyStats    = ()        => api.get('/agency/stats');
-export const agencyTrips    = (p)       => api.get('/agency/trips', { params: p });
-export const agencyCreateTrip = (d)     => api.post('/agency/trips', d);
-export const agencyPatchTrip  = (id,d)  => api.patch(`/agency/trips/${id}`, d);
-export const agencyDeleteTrip = (id)    => api.delete(`/agency/trips/${id}`);
-export const agencyBookings = (p)       => api.get('/agency/bookings', { params: p });
-
-// ── Fidélité & parrainage ──────────────────────────────────────────────────────
-export const getLoyalty     = ()         => api.get('/loyalty/me');
-export const checkReferral  = (code)     => api.get(`/loyalty/referral/${code}`);
-
-// ── Avis ──────────────────────────────────────────────────────────────────────
-export const submitReview   = (d)        => api.post('/reviews', d);
-export const getTripReviews = (tripId)   => api.get(`/reviews/trip/${tripId}`);
-
-// ── Téléchargement billet PDF ─────────────────────────────────────────────────
-export const downloadTicket = (bookingId) =>
-  api.get(`/bookings/${bookingId}`, {}).then(b => b.pdfUrl
-    ? window.open(b.pdfUrl, '_blank')
-    : alert('PDF non encore généré, réessayez dans quelques instants'));
+// ── Agency ─────────────────────────────────────────────────────────────────
+export const agencyMe          = ()         => get('/agency/me');
+export const agencyStats       = ()         => get('/agency/stats');
+export const agencyTrips       = (p = {})   => get(`/agency/trips?${new URLSearchParams(p)}`);
+export const agencyCreateTrip  = d          => post('/agency/trips', d);
+export const agencyPatchTrip   = (id, d)    => patch(`/agency/trips/${id}`, d);
+export const agencyDeleteTrip  = id         => del(`/agency/trips/${id}`);
+export const agencyBookings    = (p = {})   => get(`/agency/bookings?${new URLSearchParams(p)}`);

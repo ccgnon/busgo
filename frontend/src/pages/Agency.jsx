@@ -7,224 +7,286 @@ import {
   agencyBookings,
 } from '../services/api';
 
-const FCFA = n => Number(n || 0).toLocaleString('fr-FR') + ' FCFA';
-const STATIONS = ['Yaoundé','Douala','Bafoussam','Bamenda','Ngaoundéré','Garoua','Kribi','Buea','Ebolowa','Bertoua','Maroua','Limbé'];
-const AMENITIES_OPT = ['ac','wifi','usb','snacks','toilet'];
+const FCFA = n => Number(n||0).toLocaleString('fr-FR') + ' FCFA';
+const STATIONS = ['Yaoundé','Douala','Bafoussam','Bamenda','Ngaoundéré',
+                  'Garoua','Kribi','Buea','Ebolowa','Bertoua','Maroua','Limbé'];
+const AMENITIES = [
+  { id:'ac',      label:'Climatisation', icon:'❄️' },
+  { id:'wifi',    label:'WiFi',          icon:'📶' },
+  { id:'usb',     label:'USB',           icon:'🔌' },
+  { id:'snacks',  label:'Snacks',        icon:'🍪' },
+  { id:'toilet',  label:'Toilettes',     icon:'🚻' },
+];
 
-function StatCard({ label, value, sub, color='var(--gold)' }) {
+function Icon({ d, size=16 }) {
   return (
-    <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--radius-lg)', padding:'16px 20px' }}>
-      <div style={{ fontSize:11, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'.6px', marginBottom:6 }}>{label}</div>
-      <div style={{ fontSize:24, fontWeight:800, fontFamily:'var(--font-display)', color }}>{value}</div>
-      {sub && <div style={{ fontSize:11, color:'var(--muted)', marginTop:4 }}>{sub}</div>}
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d={d}/>
+    </svg>
+  );
+}
+const I = {
+  chart:  'M3 3v18h18M7 16l4-4 4 4 4-4',
+  bus:    'M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a4 4 0 0 1 4 4v6M13 17h6M17 21v-4m-8 4v-4M5 9h12M5 13h12',
+  ticket: 'M2 9a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-2a2 2 0 0 0 0-4Z',
+  plus:   'M12 5v14M5 12h14',
+  edit:   'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z',
+  trash:  'M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 6V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v2',
+  x:      'M18 6 6 18M6 6l12 12',
+  cash:   'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
+};
+
+function StatusBadge({ status }) {
+  const map = {
+    CONFIRMED:{ cls:'badge-green', label:'Confirmé' },
+    VALIDATED:{ cls:'badge-green', label:'Validé' },
+    CANCELLED:{ cls:'badge-red',   label:'Annulé' },
+    EXPIRED:  { cls:'badge-muted', label:'Expiré' },
+  };
+  const { cls, label } = map[status] || { cls:'badge-muted', label: status };
+  return <span className={`badge ${cls}`}>{label}</span>;
+}
+
+function Modal({ title, onClose, children }) {
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal fade-up" style={{ maxWidth:540 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
+          <h2 style={{ fontFamily:'var(--font-display)', fontSize:18, fontWeight:800 }}>{title}</h2>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer' }}>
+            <Icon d={I.x} size={20}/>
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
 
-function Badge({ s }) {
-  const map = {
-    CONFIRMED:{ bg:'rgba(45,184,102,.15)', c:'var(--success)', l:'Confirmé' },
-    CANCELLED:{ bg:'rgba(239,68,68,.12)', c:'var(--danger)', l:'Annulé' },
-    VALIDATED:{ bg:'rgba(35,144,79,.15)', c:'var(--green-light)', l:'Validé' },
-  };
-  const x = map[s] || map.CONFIRMED;
-  return <span style={{ background:x.bg, color:x.c, padding:'2px 10px', borderRadius:99, fontSize:11, fontWeight:600 }}>{x.l}</span>;
+function Field({ label, children }) {
+  return (
+    <div style={{ marginBottom:14 }}>
+      <label style={{ display:'block', fontSize:12, color:'var(--text-muted)', marginBottom:5, fontWeight:500 }}>{label}</label>
+      {children}
+    </div>
+  );
 }
 
-export default function AgencyPortal() {
+export default function Agency() {
   const { user } = useStore();
   const navigate  = useNavigate();
-  const [tab,     setTab]     = useState('dashboard');
-  const [agency,  setAgency]  = useState(null);
-  const [stats,   setStats]   = useState(null);
-  const [trips,   setTrips]   = useState([]);
-  const [bookings,setBookings]= useState([]);
-  const [loading, setLoading] = useState(false);
-  const [modal,   setModal]   = useState(null);
-  const [editTrip,setEditTrip]= useState(null);
+  const [tab,      setTab]     = useState('dashboard');
+  const [agency,   setAgency]  = useState(null);
+  const [stats,    setStats]   = useState(null);
+  const [trips,    setTrips]   = useState([]);
+  const [bookings, setBookings]= useState([]);
+  const [loading,  setLoading] = useState(false);
+  const [modal,    setModal]   = useState(null);
+  const [editTrip, setEditTrip]= useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const me = await agencyMe();
-      setAgency(me);
-      if (tab === 'dashboard') { const r = await agencyStats(); setStats(r); }
-      if (tab === 'trips')     { const r = await agencyTrips(); setTrips(r.trips || []); }
-      if (tab === 'bookings')  { const r = await agencyBookings(); setBookings(r.bookings || []); }
-    } catch (e) { console.error(e); }
+      setAgency(await agencyMe());
+      if (tab === 'dashboard') setStats(await agencyStats());
+      if (tab === 'trips')     setTrips((await agencyTrips()).trips || []);
+      if (tab === 'bookings')  setBookings((await agencyBookings()).bookings || []);
+    } catch(e) { console.error(e); }
     finally { setLoading(false); }
   }, [tab]);
 
   useEffect(() => { load(); }, [load]);
 
-  if (!user) {
-    navigate('/login');
-    return null;
-  }
+  if (!user) { navigate('/login'); return null; }
   if (!['AGENCY','ADMIN'].includes(user.role)) return (
-    <div style={{ textAlign:'center', padding:'80px 20px', color:'var(--muted)' }}>
-      <div style={{ fontSize:48, opacity:.2, marginBottom:16 }}>🏢</div>
-      <div style={{ fontFamily:'var(--font-display)', fontSize:20, marginBottom:8 }}>Portail Agence</div>
-      <div style={{ fontSize:13, marginBottom:20 }}>Votre compte ({user.role}) n'est pas un compte agence.</div>
-      <button onClick={() => navigate('/login')} style={btnPrimary}>Se connecter avec un compte Agence</button>
+    <div style={{ maxWidth:480, margin:'120px auto', textAlign:'center', padding:'0 24px' }}>
+      <div style={{ fontSize:48, marginBottom:16, opacity:.3 }}>🏢</div>
+      <h2 style={{ fontFamily:'var(--font-display)', marginBottom:8 }}>Portail Agence</h2>
+      <p style={{ color:'var(--text-muted)', marginBottom:24 }}>Votre compte n'est pas un compte agence.</p>
+      <button className="btn btn-primary" onClick={() => navigate('/login')}>Se connecter avec un compte agence</button>
     </div>
   );
 
   return (
-    <div style={{ maxWidth:1280, margin:'0 auto', padding:'28px 24px', position:'relative', zIndex:1 }}>
+    <div style={{ maxWidth:1280, margin:'0 auto', padding:'32px 24px' }}>
 
       {/* Header */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:24 }}>
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:28 }}>
         <div>
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
-            <div style={{ width:40, height:40, borderRadius:10, background:'linear-gradient(135deg,var(--green-mid),var(--gold))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>🏢</div>
+          <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:4 }}>
+            <div style={{ width:44, height:44, borderRadius:'var(--r-md)', background:'var(--bg-elevated)', border:'1px solid var(--border-md)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>
+              🏢
+            </div>
             <div>
-              <h1 style={{ fontFamily:'var(--font-display)', fontSize:22, fontWeight:900, margin:0 }}>
+              <h1 style={{ fontFamily:'var(--font-display)', fontSize:24, fontWeight:900, lineHeight:1 }}>
                 {agency?.name || 'Portail Agence'}
               </h1>
-              <div style={{ fontSize:11, color:'var(--muted)' }}>{agency?.email}</div>
+              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3 }}>{agency?.email}</div>
             </div>
           </div>
         </div>
-        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {[['dashboard','📊 Tableau de bord'],['trips','🚌 Mes trajets'],['bookings','🎫 Réservations']].map(([k,l]) => (
-            <button key={k} onClick={() => setTab(k)} style={{
-              ...btnGhost,
-              background: tab===k ? 'var(--green-glow)' : 'transparent',
-              borderColor: tab===k ? 'var(--green-mid)' : 'var(--border)',
-              color: tab===k ? 'var(--green-light)' : 'var(--muted)',
-              fontWeight: tab===k ? 600 : 400,
-            }}>{l}</button>
-          ))}
+        <div style={{ display:'flex', gap:4 }}>
+          {agency?.verified && <span className="badge badge-green">Vérifié ✓</span>}
+          <span className={`badge ${agency?.active ? 'badge-green' : 'badge-red'}`}>
+            {agency?.active ? 'Active' : 'Inactive'}
+          </span>
         </div>
       </div>
 
-      {loading && <div style={{ textAlign:'center', color:'var(--muted)', padding:32 }}>⏳ Chargement...</div>}
+      {/* Tabs */}
+      <div className="tabs" style={{ marginBottom:28 }}>
+        {[
+          { id:'dashboard', label:'Tableau de bord', icon:I.chart },
+          { id:'trips',     label:'Mes trajets',     icon:I.bus },
+          { id:'bookings',  label:'Réservations',    icon:I.ticket },
+        ].map(t => (
+          <button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={() => setTab(t.id)}
+            style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <Icon d={t.icon} size={13}/>{t.label}
+          </button>
+        ))}
+      </div>
 
       {/* ── DASHBOARD ── */}
-      {tab === 'dashboard' && stats && (
+      {tab === 'dashboard' && stats && !loading && (
         <div className="fade-in">
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:20 }}>
-            <StatCard label="Trajets actifs"  value={stats.trips?.active}    sub={`${stats.trips?.total} au total`} color="var(--green-light)" />
-            <StatCard label="Recettes FCFA"   value={FCFA(stats.revenue?.total)} sub={`${stats.revenue?.bookings} réservations`} />
-            <StatCard label="Panier moyen"    value={FCFA(stats.revenue?.average)} color="var(--muted)" />
+          <div className="grid-3" style={{ marginBottom:24 }}>
+            {[
+              { label:'Trajets actifs',  value:stats.trips?.active,              sub:`${stats.trips?.total} au total`,          color:'var(--c-green-300)', icon:I.bus },
+              { label:'Recettes FCFA',   value:FCFA(stats.revenue?.total),       sub:`${stats.revenue?.bookings} réservations`, color:'var(--c-gold-400)',  icon:I.cash },
+              { label:'Panier moyen',    value:FCFA(stats.revenue?.average),     sub:'par réservation',                         color:'var(--text-muted)',  icon:I.ticket },
+            ].map(c => (
+              <div key={c.label} className="stat-card fade-up" style={{ borderTop:`2px solid ${c.color}` }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
+                  <div className="stat-label">{c.label}</div>
+                  <div style={{ color:c.color, opacity:.7 }}><Icon d={c.icon} size={18}/></div>
+                </div>
+                <div className="stat-value" style={{ color:c.color }}>{c.value}</div>
+                <div className="stat-sub">{c.sub}</div>
+              </div>
+            ))}
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
-            {/* Réservations récentes */}
-            <div style={card}>
-              <div style={secTitle}>Réservations récentes</div>
+          <div className="grid-2">
+            <div className="card fade-up delay-1">
+              <div className="card-header"><span className="card-title">Réservations récentes</span></div>
               {(stats.recentBookings||[]).length === 0 && (
-                <div style={{ color:'var(--muted)', fontSize:13, textAlign:'center', padding:'20px 0' }}>Aucune réservation</div>
+                <p style={{ color:'var(--text-muted)', fontSize:13, textAlign:'center', padding:'24px 0' }}>
+                  Aucune réservation pour le moment
+                </p>
               )}
               {(stats.recentBookings||[]).map(b => (
-                <div key={b.id} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid var(--border)', fontSize:12 }}>
+                <div key={b.id} style={{ display:'flex', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid var(--border)', fontSize:12 }}>
                   <div>
-                    <div style={{ fontFamily:'monospace', fontSize:11, color:'var(--green-light)' }}>{b.id}</div>
-                    <div style={{ color:'var(--muted)', fontSize:11 }}>{b.trip?.from} → {b.trip?.to} · {b.travelDate}</div>
-                    {b.passengerName && <div style={{ fontSize:11 }}>{b.passengerName}</div>}
+                    <div style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--c-green-200)', marginBottom:2 }}>{b.id}</div>
+                    <div style={{ color:'var(--text-muted)' }}>{b.trip?.from} → {b.trip?.to} · {b.travelDate}</div>
+                    {b.passengerName && <div style={{ marginTop:1 }}>{b.passengerName}</div>}
                   </div>
                   <div style={{ textAlign:'right' }}>
-                    <Badge s={b.status} />
-                    <div style={{ color:'var(--gold)', fontSize:11, marginTop:2 }}>{FCFA(b.totalPrice)}</div>
+                    <StatusBadge status={b.status}/>
+                    <div style={{ color:'var(--c-gold-400)', marginTop:3 }}>{FCFA(b.totalPrice)}</div>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Info agence */}
-            <div style={card}>
-              <div style={secTitle}>Mon agence</div>
-              {agency && (
-                <div style={{ fontSize:13 }}>
-                  {[
-                    ['Nom',        agency.name],
-                    ['Email',      agency.email],
-                    ['Téléphone',  agency.phone || '—'],
-                    ['Statut',     agency.active ? '✅ Active' : '❌ Inactive'],
-                    ['Vérifiée',   agency.verified ? '✅ Oui' : '⏳ En attente'],
-                    ['Trajets',    agency._count?.trips || '—'],
-                  ].map(([k,v]) => (
-                    <div key={k} style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--border)' }}>
-                      <span style={{ color:'var(--muted)' }}>{k}</span>
-                      <span style={{ fontWeight:500 }}>{v}</span>
-                    </div>
-                  ))}
+            <div className="card fade-up delay-2">
+              <div className="card-header"><span className="card-title">Informations agence</span></div>
+              {agency && [
+                ['Nom',        agency.name],
+                ['Email',      agency.email],
+                ['Téléphone',  agency.phone||'—'],
+                ['Commission', `${(agency.commission*100).toFixed(0)}%`],
+                ['Trajets',    agency._count?.trips||'—'],
+                ['Agents',     agency._count?.users||'—'],
+              ].map(([k,v]) => (
+                <div key={k} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:'1px solid var(--border)', fontSize:13 }}>
+                  <span style={{ color:'var(--text-muted)' }}>{k}</span>
+                  <span style={{ fontWeight:500 }}>{v}</span>
                 </div>
-              )}
+              ))}
             </div>
           </div>
         </div>
       )}
 
       {/* ── MES TRAJETS ── */}
-      {tab === 'trips' && (
+      {tab === 'trips' && !loading && (
         <div className="fade-in">
-          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:14 }}>
-            <button onClick={() => setModal('newTrip')} style={btnPrimary}>+ Ajouter un trajet</button>
+          <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:16 }}>
+            <button className="btn btn-primary" style={{ display:'flex', alignItems:'center', gap:6 }}
+              onClick={() => { setEditTrip(null); setModal('trip'); }}>
+              <Icon d={I.plus} size={14}/> Ajouter un trajet
+            </button>
           </div>
 
-          {trips.length === 0 && !loading && (
-            <div style={{ ...card, textAlign:'center', padding:'48px 20px' }}>
-              <div style={{ fontSize:48, opacity:.2, marginBottom:12 }}>🚌</div>
-              <div style={{ fontFamily:'var(--font-display)', fontSize:18, marginBottom:8 }}>Aucun trajet</div>
-              <div style={{ color:'var(--muted)', fontSize:13, marginBottom:16 }}>Ajoutez vos premiers trajets</div>
-              <button onClick={() => setModal('newTrip')} style={btnPrimary}>+ Ajouter un trajet</button>
+          {trips.length === 0 && (
+            <div className="card" style={{ textAlign:'center', padding:'60px 24px' }}>
+              <div style={{ fontSize:48, marginBottom:16, opacity:.2 }}>🚌</div>
+              <h3 style={{ fontFamily:'var(--font-display)', marginBottom:8 }}>Aucun trajet</h3>
+              <p style={{ color:'var(--text-muted)', marginBottom:20 }}>Ajoutez vos premiers trajets pour commencer à vendre des billets.</p>
+              <button className="btn btn-primary" onClick={() => { setEditTrip(null); setModal('trip'); }}>
+                + Ajouter un trajet
+              </button>
             </div>
           )}
 
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))', gap:14 }}>
             {trips.map(t => (
-              <div key={t.id} style={{ ...card, padding:'16px 20px', opacity: t.active ? 1 : .6 }}>
-                {/* Bande statut */}
-                <div style={{ height:3, background: t.active ? 'linear-gradient(90deg,var(--green-mid),var(--gold))' : 'var(--border)', borderRadius:99, marginBottom:14 }} />
-
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+              <div key={t.id} className="card" style={{ opacity: t.active ? 1 : .6 }}>
+                <div style={{ height:2, background: t.active ? 'linear-gradient(90deg,var(--c-green-400),var(--c-gold-400))' : 'var(--border)', borderRadius:'var(--r-full)', marginBottom:16 }}/>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
                   <div>
-                    <div style={{ fontFamily:'var(--font-display)', fontWeight:800, fontSize:17 }}>
+                    <div style={{ fontFamily:'var(--font-display)', fontSize:17, fontWeight:800 }}>
                       {t.from} → {t.to}
                     </div>
-                    <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>{t.company}</div>
+                    <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{t.company}</div>
                   </div>
-                  <span style={{ background: t.active ? 'rgba(45,184,102,.15)' : 'rgba(239,68,68,.1)', color: t.active ? 'var(--success)' : 'var(--danger)', padding:'3px 10px', borderRadius:99, fontSize:11, fontWeight:600 }}>
+                  <span className={`badge ${t.active ? 'badge-green' : 'badge-red'}`}>
                     {t.active ? 'Actif' : 'Inactif'}
                   </span>
                 </div>
 
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:12 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6, marginBottom:12 }}>
                   {[
                     ['Départ',   t.depTime],
                     ['Arrivée',  t.arrTime],
                     ['Prix',     FCFA(t.price)],
-                    ['Sièges',   `${t.freeSeats}/${t.totalSeats} libres`],
-                    ['Réservations', t.bookings],
-                  ].map(([k,v]) => (
-                    <div key={k} style={{ background:'var(--bg)', borderRadius:8, padding:'7px 10px' }}>
-                      <div style={{ fontSize:9, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'.5px' }}>{k}</div>
-                      <div style={{ fontSize:13, fontWeight:600, marginTop:2, color: k==='Prix' ? 'var(--gold)' : 'var(--text)' }}>{v}</div>
+                    [`${t.freeSeats}/${t.totalSeats}`, 'places libres'],
+                    [t.bookings, 'réservations'],
+                  ].slice(0,3).map(([v,k]) => (
+                    <div key={k} style={{ background:'var(--bg-elevated)', borderRadius:'var(--r-sm)', padding:'8px 10px' }}>
+                      <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:2 }}>{k}</div>
+                      <div style={{ fontSize:13, fontWeight:600 }}>{v}</div>
                     </div>
                   ))}
                 </div>
 
                 {t.amenities?.length > 0 && (
                   <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:12 }}>
-                    {t.amenities.map(a => (
-                      <span key={a} style={{ background:'var(--bg)', border:'1px solid var(--border)', borderRadius:99, fontSize:10, padding:'2px 8px', color:'var(--muted)' }}>
-                        {a === 'ac' ? '❄️ Clim' : a === 'wifi' ? '📶 WiFi' : a === 'usb' ? '🔌 USB' : a}
-                      </span>
-                    ))}
+                    {t.amenities.map(a => {
+                      const am = AMENITIES.find(x => x.id === a);
+                      return (
+                        <span key={a} className="badge badge-muted">{am?.icon} {am?.label||a}</span>
+                      );
+                    })}
                   </div>
                 )}
 
                 <div style={{ display:'flex', gap:6 }}>
-                  <button onClick={() => { setEditTrip(t); setModal('editTrip'); }}
-                    style={{ ...btnGhost, flex:1, fontSize:11, padding:'5px 0' }}>✏️ Modifier</button>
-                  <button onClick={async () => { await agencyPatchTrip(t.id, { active: !t.active }); load(); }}
-                    style={{ ...btnGhost, flex:1, fontSize:11, padding:'5px 0' }}>
-                    {t.active ? '⏸ Désactiver' : '▶️ Activer'}
+                  <button className="btn btn-ghost" style={{ flex:1, fontSize:11, padding:'6px 0', display:'flex', alignItems:'center', justifyContent:'center', gap:4 }}
+                    onClick={() => { setEditTrip(t); setModal('trip'); }}>
+                    <Icon d={I.edit} size={12}/> Modifier
                   </button>
-                  <button onClick={async () => { if (confirm('Supprimer ce trajet ?')) { await agencyDeleteTrip(t.id); load(); } }}
-                    style={{ ...btnGhost, fontSize:11, padding:'5px 10px', color:'var(--danger)', borderColor:'rgba(239,68,68,.3)' }}>🗑</button>
+                  <button className="btn btn-ghost" style={{ flex:1, fontSize:11, padding:'6px 0' }}
+                    onClick={async () => { await agencyPatchTrip(t.id, { active: !t.active }); load(); }}>
+                    {t.active ? 'Désactiver' : 'Activer'}
+                  </button>
+                  <button className="btn btn-ghost" style={{ padding:'6px 10px', color:'var(--c-red-400)', borderColor:'rgba(192,57,43,.3)' }}
+                    onClick={async () => { if(confirm('Supprimer ce trajet ?')) { await agencyDeleteTrip(t.id); load(); } }}>
+                    <Icon d={I.trash} size={12}/>
+                  </button>
                 </div>
               </div>
             ))}
@@ -233,33 +295,33 @@ export default function AgencyPortal() {
       )}
 
       {/* ── RÉSERVATIONS ── */}
-      {tab === 'bookings' && (
-        <div className="fade-in" style={card}>
-          <div style={secTitle}>Réservations de mes trajets ({bookings.length})</div>
-          {bookings.length === 0 && !loading && (
-            <div style={{ textAlign:'center', color:'var(--muted)', padding:'32px 0', fontSize:13 }}>Aucune réservation pour vos trajets</div>
+      {tab === 'bookings' && !loading && (
+        <div className="card fade-in">
+          <div className="card-header">
+            <span className="card-title">Réservations de mes trajets ({bookings.length})</span>
+          </div>
+          {bookings.length === 0 && (
+            <p style={{ textAlign:'center', color:'var(--text-muted)', padding:'32px 0', fontSize:13 }}>
+              Aucune réservation pour vos trajets
+            </p>
           )}
-          <div style={{ overflowX:'auto' }}>
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+          <div className="table-wrap">
+            <table>
               <thead>
-                <tr style={{ borderBottom:'1px solid var(--border)' }}>
-                  {['Référence','Trajet','Passager','Téléphone','Date','Siège','Total','Code','Statut'].map(h => (
-                    <th key={h} style={{ padding:'8px 10px', textAlign:'left', color:'var(--muted)', fontWeight:500, whiteSpace:'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
+                <tr>{['Référence','Trajet','Passager','Téléphone','Date','Siège','Total','Code','Statut'].map(h=><th key={h}>{h}</th>)}</tr>
               </thead>
               <tbody>
                 {bookings.map(b => (
-                  <tr key={b.id} style={{ borderBottom:'1px solid var(--border)' }}>
-                    <td style={td}><span style={{ fontFamily:'monospace', fontSize:11 }}>{b.id}</span></td>
-                    <td style={td}>{b.trip?.from} → {b.trip?.to}</td>
-                    <td style={td}>{b.passengerName || '—'}</td>
-                    <td style={td}>{b.passengerPhone || '—'}</td>
-                    <td style={td}>{b.travelDate}</td>
-                    <td style={td}>{b.seatNum}</td>
-                    <td style={{ ...td, color:'var(--gold)', fontWeight:600 }}>{FCFA(b.totalPrice)}</td>
-                    <td style={td}><span style={{ fontFamily:'monospace', fontSize:11, color:'var(--green-light)' }}>{b.validationCode}</span></td>
-                    <td style={td}><Badge s={b.status} /></td>
+                  <tr key={b.id}>
+                    <td><span className="text-mono" style={{ fontSize:11, color:'var(--c-green-200)' }}>{b.id}</span></td>
+                    <td style={{ fontSize:12 }}>{b.trip?.from} → {b.trip?.to}</td>
+                    <td style={{ fontSize:12 }}>{b.passengerName||'—'}</td>
+                    <td style={{ fontSize:11, color:'var(--text-muted)' }}>{b.passengerPhone||'—'}</td>
+                    <td style={{ fontSize:12 }}>{b.travelDate}</td>
+                    <td style={{ textAlign:'center' }}>{b.seatNum}</td>
+                    <td style={{ color:'var(--c-gold-400)', fontWeight:600, fontSize:12 }}>{FCFA(b.totalPrice)}</td>
+                    <td><span className="text-mono" style={{ fontSize:11, color:'var(--c-green-300)' }}>{b.validationCode}</span></td>
+                    <td><StatusBadge status={b.status}/></td>
                   </tr>
                 ))}
               </tbody>
@@ -268,25 +330,19 @@ export default function AgencyPortal() {
         </div>
       )}
 
-      {/* ── MODAL nouveau trajet ── */}
-      {(modal === 'newTrip' || modal === 'editTrip') && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:999 }}
-          onClick={e => e.target === e.currentTarget && setModal(null)}>
-          <div style={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:'var(--radius-xl)', padding:28, width:500, maxWidth:'92vw', maxHeight:'90vh', overflowY:'auto' }}>
-            <div style={{ fontFamily:'var(--font-display)', fontSize:18, fontWeight:800, marginBottom:20 }}>
-              {modal === 'editTrip' ? '✏️ Modifier le trajet' : '+ Nouveau trajet'}
-            </div>
-            <TripForm
-              initial={editTrip}
-              onSave={async d => {
-                if (modal === 'editTrip') await agencyPatchTrip(editTrip.id, d);
-                else await agencyCreateTrip(d);
-                setModal(null); setEditTrip(null); load();
-              }}
-              onCancel={() => { setModal(null); setEditTrip(null); }}
-            />
-          </div>
-        </div>
+      {/* ── Modal trajet ── */}
+      {modal === 'trip' && (
+        <Modal title={editTrip ? '✏️ Modifier le trajet' : '+ Nouveau trajet'} onClose={() => setModal(null)}>
+          <TripForm
+            initial={editTrip}
+            onSave={async d => {
+              if (editTrip) await agencyPatchTrip(editTrip.id, d);
+              else await agencyCreateTrip(d);
+              setModal(null); setEditTrip(null); load();
+            }}
+            onCancel={() => { setModal(null); setEditTrip(null); }}
+          />
+        </Modal>
       )}
     </div>
   );
@@ -301,80 +357,82 @@ function TripForm({ initial, onSave, onCancel }) {
     durationMin: initial?.durationMin || '',
     price:       initial?.price   || '',
     totalSeats:  initial?.totalSeats || 70,
-    stops:       initial?.stops   || 0,
     amenities:   initial?.amenities || [],
   });
-  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
-  const toggleAmenity = a => setForm(f => ({
-    ...f,
-    amenities: f.amenities.includes(a) ? f.amenities.filter(x => x !== a) : [...f.amenities, a],
-  }));
   const [err, setErr] = useState('');
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+  const toggleAmenity = id => setForm(f => ({
+    ...f,
+    amenities: f.amenities.includes(id) ? f.amenities.filter(x=>x!==id) : [...f.amenities, id],
+  }));
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-        {[['fromCity','Ville de départ *','select'],['toCity','Ville d\'arrivée *','select']].map(([k,l,t]) => (
-          <div key={k}>
-            <label style={{ fontSize:12, color:'var(--muted)', display:'block', marginBottom:4 }}>{l}</label>
-            <select value={form[k]} onChange={set(k)} style={inputStyle}>
-              <option value="">— Choisir —</option>
-              {STATIONS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        ))}
-        {[
-          ['depTime','Heure départ *','time'],
-          ['arrTime','Heure arrivée *','time'],
-          ['durationMin','Durée (min)','number'],
-          ['price','Prix (FCFA) *','number'],
-          ['totalSeats','Nombre de sièges','number'],
-          ['stops','Nombre d\'arrêts','number'],
-        ].map(([k,l,t]) => (
-          <div key={k}>
-            <label style={{ fontSize:12, color:'var(--muted)', display:'block', marginBottom:4 }}>{l}</label>
-            <input type={t} value={form[k]} onChange={set(k)} style={inputStyle} />
-          </div>
-        ))}
+    <div>
+      <div className="grid-2">
+        <Field label="Ville de départ *">
+          <select className="input" value={form.fromCity} onChange={set('fromCity')}>
+            <option value="">— Choisir —</option>
+            {STATIONS.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </Field>
+        <Field label="Ville d'arrivée *">
+          <select className="input" value={form.toCity} onChange={set('toCity')}>
+            <option value="">— Choisir —</option>
+            {STATIONS.filter(s => s !== form.fromCity).map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </Field>
+        <Field label="Heure départ *">
+          <input className="input" type="time" value={form.depTime} onChange={set('depTime')}/>
+        </Field>
+        <Field label="Heure arrivée *">
+          <input className="input" type="time" value={form.arrTime} onChange={set('arrTime')}/>
+        </Field>
+        <Field label="Durée (minutes)">
+          <input className="input" type="number" value={form.durationMin} onChange={set('durationMin')} placeholder="240"/>
+        </Field>
+        <Field label="Prix (FCFA) *">
+          <input className="input" type="number" value={form.price} onChange={set('price')} placeholder="5000"/>
+        </Field>
+        <Field label="Nombre de sièges">
+          <input className="input" type="number" value={form.totalSeats} onChange={set('totalSeats')}/>
+        </Field>
       </div>
 
-      <div>
-        <label style={{ fontSize:12, color:'var(--muted)', display:'block', marginBottom:8 }}>Équipements</label>
+      <Field label="Équipements">
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          {AMENITIES_OPT.map(a => (
-            <button key={a} type="button" onClick={() => toggleAmenity(a)} style={{
-              padding:'5px 14px', borderRadius:99, fontSize:12, cursor:'pointer',
-              border:`1px solid ${form.amenities.includes(a) ? 'var(--gold)' : 'var(--border)'}`,
-              background: form.amenities.includes(a) ? 'var(--gold-glow)' : 'transparent',
-              color: form.amenities.includes(a) ? 'var(--gold)' : 'var(--muted)',
-            }}>
-              {a === 'ac' ? '❄️ Climatisation' : a === 'wifi' ? '📶 WiFi' : a === 'usb' ? '🔌 USB' : a === 'snacks' ? '🍪 Snacks' : '🚻 Toilettes'}
+          {AMENITIES.map(a => (
+            <button key={a.id} type="button"
+              onClick={() => toggleAmenity(a.id)}
+              style={{
+                padding:'6px 14px',
+                borderRadius:'var(--r-full)',
+                fontSize:12,
+                cursor:'pointer',
+                border:`1px solid ${form.amenities.includes(a.id) ? 'var(--c-gold-400)' : 'var(--border-md)'}`,
+                background: form.amenities.includes(a.id) ? 'rgba(232,160,32,.1)' : 'transparent',
+                color: form.amenities.includes(a.id) ? 'var(--c-gold-300)' : 'var(--text-muted)',
+                transition:'all .15s',
+              }}>
+              {a.icon} {a.label}
             </button>
           ))}
         </div>
-      </div>
+      </Field>
 
-      {err && <div style={{ color:'var(--danger)', fontSize:13 }}>{err}</div>}
+      {err && <p style={{ color:'var(--c-red-400)', fontSize:13, marginBottom:12 }}>{err}</p>}
 
-      <div style={{ display:'flex', gap:8, marginTop:4 }}>
-        <button onClick={() => {
-          if (!form.fromCity || !form.toCity || !form.depTime || !form.arrTime || !form.price) {
+      <div style={{ display:'flex', gap:8, marginTop:20 }}>
+        <button className="btn btn-primary" style={{ flex:1 }} onClick={() => {
+          if (!form.fromCity || !form.toCity || !form.depTime || !form.price) {
             setErr('Veuillez remplir tous les champs obligatoires *'); return;
           }
           if (form.fromCity === form.toCity) { setErr('Départ et arrivée doivent être différents'); return; }
           onSave(form);
-        }} style={{ ...btnPrimary, flex:1 }}>
-          {initial ? 'Enregistrer les modifications' : 'Créer le trajet'}
+        }}>
+          {initial ? 'Enregistrer' : 'Créer le trajet'}
         </button>
-        <button onClick={onCancel} style={{ ...btnGhost, flex:1 }}>Annuler</button>
+        <button className="btn btn-ghost" style={{ flex:1 }} onClick={onCancel}>Annuler</button>
       </div>
     </div>
   );
 }
-
-const card    = { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--radius-lg)', padding:20 };
-const secTitle= { fontSize:13, fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'.6px', marginBottom:14 };
-const td      = { padding:'8px 10px', verticalAlign:'middle' };
-const inputStyle = { width:'100%', background:'var(--bg)', border:'1px solid var(--border2)', borderRadius:8, padding:'9px 12px', color:'var(--text)', fontSize:13, outline:'none' };
-const btnPrimary = { background:'linear-gradient(135deg,var(--green-mid),var(--green-light))', color:'#fff', border:'none', borderRadius:8, padding:'9px 16px', fontSize:13, fontWeight:600, cursor:'pointer' };
-const btnGhost   = { background:'transparent', color:'var(--muted)', border:'1px solid var(--border)', borderRadius:8, padding:'8px 14px', fontSize:13, cursor:'pointer' };
