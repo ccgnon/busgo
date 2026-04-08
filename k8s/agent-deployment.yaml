@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busgo-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent
+  template:
+    metadata:
+      labels:
+        app: agent
+    spec:
+      containers:
+      - name: agent
+        image: ccgnon/busgo-agent:latest
+        envFrom:
+        - configMapRef:
+            name: busgo-config
+        - secretRef:
+            name: busgo-secrets
