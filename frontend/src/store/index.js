@@ -85,12 +85,19 @@ export const useStore = create((set, get) => ({
 
   setSearchParams: params => set(s => ({ searchParams: { ...s.searchParams, ...params } })),
 
-  selectedTrip:    null,
-  selectedSeat:    null,
-  currentBooking:  null,
+  selectedTrip:   null,
+  selectedSeat:   null,
+  selectedSeats:  [],
+  currentBooking: null,
 
-  selectTrip:        trip => set({ selectedTrip: trip, selectedSeat: null }),
-  selectSeat:        seat => set({ selectedSeat: seat }),
-  setCurrentBooking: b    => set({ currentBooking: b }),
-  resetBookingFlow:  ()   => set({ selectedTrip: null, selectedSeat: null }),
+  selectTrip: trip => set({ selectedTrip: trip, selectedSeat: null, selectedSeats: [] }),
+  selectSeat: seat => set({ selectedSeat: seat, selectedSeats: seat ? [seat] : [] }),
+  toggleSeat: (seat, maxSeats) => set(s => {
+    const seats = s.selectedSeats || [];
+    if (seats.includes(seat)) return { selectedSeats: seats.filter(x => x !== seat) };
+    if (seats.length >= maxSeats) return s;
+    return { selectedSeats: [...seats, seat].sort((a,b) => a-b), selectedSeat: seat };
+  }),
+  setCurrentBooking: b  => set({ currentBooking: b }),
+  resetBookingFlow:  () => set({ selectedTrip: null, selectedSeat: null, selectedSeats: [] }),
 }));

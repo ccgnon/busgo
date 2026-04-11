@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { searchTrips, getTrip, createBooking } from '../services/api';
+import { searchTrips, getTrip } from '../services/api';
 import { useStore } from '../store';
 
 const STATIONS = ['Yaoundé','Douala','Bafoussam','Bamenda','Ngaoundéré',
@@ -38,18 +38,16 @@ function SwapIcon() {
 
 export default function Home() {
   const navigate = useNavigate();
-  const { user, selectedTrip, selectedSeat, selectTrip, selectSeat,
-          setCurrentBooking, searchParams, setSearchParams } = useStore();
+  const { user, selectedTrip, selectedSeats, selectTrip, toggleSeat,
+          searchParams, setSearchParams } = useStore();
+  const seats = selectedSeats || [];
 
-  const [step, setStep]           = useState(0);
-  const [results, setResults]     = useState(null);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState(null);
+  const [step, setStep]             = useState(0);
+  const [results, setResults]       = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState(null);
   const [tripDetail, setTripDetail] = useState(null);
-  const [payMethod, setPayMethod] = useState('mtn_momo');
-  const [bookLoading, setBookLoading] = useState(false);
-  const [bookError, setBookError] = useState(null);
-  const [filter, setFilter]       = useState('all');
+  const [filter, setFilter]         = useState('all');
 
   const { from, to, date, pax } = searchParams;
 
@@ -83,23 +81,9 @@ export default function Home() {
     }
   }
 
-  async function handleBook(e) {
-    e.preventDefault();
-    if (!selectedSeat) { setBookError('Sélectionnez un siège'); return; }
-    setBookLoading(true); setBookError(null);
-    try {
-      const res = await createBooking({
-        tripId: selectedTrip.id,
-        seat: selectedSeat,
-        pax, paymentMethod: payMethod, date,
-      });
-      setCurrentBooking(res.booking);
-      setStep(3);
-    } catch (err) {
-      setBookError(err.error || 'Erreur lors de la réservation');
-    } finally {
-      setBookLoading(false);
-    }
+  function handleGoToPayment() {
+    if (seats.length === 0) return;
+    navigate('/payment');
   }
 
   let trips = results?.trips || [];
@@ -144,7 +128,7 @@ export default function Home() {
       }}>
         {/* Indicateur étapes */}
         <div style={{ display:'flex', gap:8, marginBottom:24 }}>
-          {['Rechercher','Choisir le siège','Payer','Confirmation'].map((s,i) => (
+          {['Rechercher','Choisir les sièges','Continuer'].map((s,i) => (
             <div key={i} style={{ display:'flex', alignItems:'center', gap:6, opacity: i <= step ? 1 : .35 }}>
               <div style={{
                 width:22, height:22, borderRadius:'50%',
@@ -300,9 +284,24 @@ export default function Home() {
                 <SeatGrid
                   total={totalSeats}
                   taken={takenSeats}
-                  selected={selectedSeat}
-                  onSelect={s => { selectSeat(s); setStep(2); }}
+                  selected={seats}
+                  maxSelect={pax}
+                  onSelect={s => toggleSeat(s, pax)}
                 />
+                {seats.length > 0 && (
+                  <div style={{ marginTop:20 }}>
+                    <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:10 }}>
+                      {seats.length} siège{seats.length>1?'s':''} sélectionné{seats.length>1?'s':''} : {seats.map(s=>`N°${s}`).join(', ')}
+                    </div>
+                    <button className="btn btn-primary" onClick={handleGoToPayment}
+                      disabled={seats.length < pax}
+                      style={{ opacity: seats.length < pax ? .5 : 1 }}>
+                      {seats.length < pax
+                        ? `Sélectionner encore ${pax - seats.length} siège${pax-seats.length>1?'s':''}`
+                        : `Continuer vers le paiement →`}
+                    </button>
+                  </div>
+                )}
               </div>
               {/* Récap trajet */}
               <div className="card" style={{ height:'fit-content' }}>
@@ -330,76 +329,6 @@ export default function Home() {
             </div>
           </div>
         )}
-
-        {/* ── ÉTAPE 2 : Paiement ── */}
-        {step === 2 && selectedTrip && selectedSeat && (
-          <div className="fade-in">
-            <button onClick={() => setStep(1)} style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:13, display:'flex', alignItems:'center', gap:6, marginBottom:20 }}>
-              ← Modifier le siège
-            </button>
-            <form onSubmit={handleBook}>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:24 }}>
-                <div>
-                  <h3 style={{ fontFamily:'var(--font-display)', fontSize:18, marginBottom:20 }}>
-                    Mode de paiement
-                  </h3>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                    {PAY_METHODS.map(pm => (
-                      <button key={pm.id} type="button"
-                        onClick={() => setPayMethod(pm.id)}
-                        style={{
-                          padding:'14px 16px',
-                          borderRadius:'var(--r-md)',
-                          border: payMethod === pm.id ? `2px solid ${pm.color}` : '1px solid var(--border-md)',
-                          background: payMethod === pm.id ? pm.bg : 'var(--bg-elevated)',
-                          color: payMethod === pm.id ? pm.color : 'var(--text-secondary)',
-                          fontSize:13, fontWeight:600, cursor:'pointer',
-                          textAlign:'left', transition:'all .15s',
-                        }}>
-                        {pm.label}
-                      </button>
-                    ))}
-                  </div>
-                  {bookError && (
-                    <div style={{ marginTop:16, padding:'10px 14px', background:'rgba(192,57,43,.1)', border:'1px solid rgba(192,57,43,.2)', borderRadius:'var(--r-md)', fontSize:13, color:'var(--c-red-400)' }}>
-                      {bookError}
-                    </div>
-                  )}
-                </div>
-
-                {/* Récap final */}
-                <div className="card">
-                  <div style={{ fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1, marginBottom:12 }}>Récapitulatif final</div>
-                  {[
-                    ['Trajet',    `${selectedTrip.from||from} → ${selectedTrip.to||to}`],
-                    ['Départ',    selectedTrip.dep || selectedTrip.depTime],
-                    ['Siège',     `N° ${selectedSeat}`],
-                    ['Passagers', `${pax}`],
-                    ['Prix/pers.', FCFA(selectedTrip.unitPrice || selectedTrip.price)],
-                    ['Frais service', FCFA(500)],
-                  ].map(([k,v]) => (
-                    <div key={k} style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--border)', fontSize:13 }}>
-                      <span style={{ color:'var(--text-muted)' }}>{k}</span>
-                      <span>{v}</span>
-                    </div>
-                  ))}
-                  <div style={{ marginTop:12, padding:'14px', background:'var(--c-green-800)', borderRadius:'var(--r-md)', border:'1px solid var(--border-md)' }}>
-                    <div style={{ fontSize:11, color:'var(--c-green-200)', marginBottom:4 }}>TOTAL À PAYER</div>
-                    <div style={{ fontFamily:'var(--font-display)', fontSize:24, fontWeight:900, color:'var(--c-gold-400)' }}>
-                      {FCFA((selectedTrip.unitPrice || selectedTrip.price) * pax + 500)}
-                    </div>
-                  </div>
-                  <button className="btn btn-primary" type="submit" disabled={bookLoading}
-                    style={{ width:'100%', marginTop:14, justifyContent:'center' }}>
-                    {bookLoading ? 'Traitement…' : '✓ Confirmer et payer'}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* ── ÉTAPE 3 : Confirmation ── */}
         {step === 3 && (
           <ConfirmationView
             booking={useStore.getState().currentBooking}
@@ -527,7 +456,7 @@ function TripCard({ trip, index, onSelect }) {
 }
 
 /* ── Grille des sièges ── */
-function SeatGrid({ total, taken, selected, onSelect }) {
+function SeatGrid({ total, taken, selected = [], maxSelect = 1, onSelect }) {
   const rows = [];
   for (let i = 0; i < total; i += 4) {
     rows.push([i+1, i+2, null, i+3, i+4].filter(n => n === null || n <= total));
@@ -562,9 +491,9 @@ function SeatGrid({ total, taken, selected, onSelect }) {
                   style={{
                     width:32, height:32,
                     borderRadius:6,
-                    border: selected === n ? '2px solid var(--c-green-400)' : '1px solid var(--border-md)',
-                    background: taken.includes(n) ? 'var(--bg)' : selected === n ? 'var(--c-green-600)' : 'var(--bg-elevated)',
-                    color: taken.includes(n) ? 'var(--border-md)' : selected === n ? 'var(--c-green-100)' : 'var(--text-muted)',
+                    border: (Array.isArray(selected)?selected:selected?[selected]:[]).includes(n) ? '2px solid var(--c-green-400)' : '1px solid var(--border-md)',
+                    background: taken.includes(n) ? 'var(--bg)' : (Array.isArray(selected)?selected:selected?[selected]:[]).includes(n) ? 'var(--c-green-600)' : 'var(--bg-elevated)',
+                    color: taken.includes(n) ? 'var(--border-md)' : (Array.isArray(selected)?selected:selected?[selected]:[]).includes(n) ? 'var(--c-green-100)' : 'var(--text-muted)',
                     fontSize:10, fontWeight:600,
                     cursor: taken.includes(n) ? 'not-allowed' : 'pointer',
                     transition:'all .1s',
