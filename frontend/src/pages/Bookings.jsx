@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMyBookings, cancelBooking, submitReview, getLoyalty } from '../services/api';
 import { useStore } from '../store';
+import { useNotif } from '../components/NotificationSystem';
 
 const FCFA = n => Number(n||0).toLocaleString('fr-FR') + ' FCFA';
 const API  = import.meta.env.VITE_API_URL?.replace('/api','') || 'http://localhost:4000';

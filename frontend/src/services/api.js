@@ -61,6 +61,10 @@ export const adminPatchAgency  = (id, d)    => patch(`/admin/agencies/${id}`, d)
 export const adminTrips        = (p = {})   => get(`/admin/trips?${new URLSearchParams(p)}`);
 export const adminPatchTrip    = (id, d)    => patch(`/admin/trips/${id}`, d);
 export const adminDeleteTrip   = id         => del(`/admin/trips/${id}`);
+export const adminDeleteUser   = id         => del(`/admin/users/${id}`);
+export const adminDeleteAgency = id         => del(`/admin/agencies/${id}`);
+export const adminDeleteBooking= id         => del(`/admin/bookings/${id}`);
+export const adminCreateUser   = d          => post('/admin/users', d);
 
 // ── Agency ─────────────────────────────────────────────────────────────────
 export const agencyMe          = ()         => get('/agency/me');

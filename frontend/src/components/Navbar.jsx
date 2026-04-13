@@ -1,338 +1,172 @@
-import { useState } from 'react';
+// components/Navbar.jsx
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useStore } from '../store';
-
-function BusIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="6" width="20" height="12" rx="3"/>
-      <path d="M2 11h20"/>
-      <circle cx="7" cy="19" r="1.5" fill="currentColor" stroke="none"/>
-      <circle cx="17" cy="19" r="1.5" fill="currentColor" stroke="none"/>
-      <path d="M7 6V4M17 6V4"/>
-    </svg>
-  );
-}
-
-function CMStar({ size = 12 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
-    </svg>
-  );
-}
+import { NotifBell } from './NotificationSystem';
 
 export default function Navbar() {
   const navigate   = useNavigate();
   const location   = useLocation();
   const { user, logout } = useStore();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const menuRef = useRef(null);
+  const isActive = p => location.pathname === p;
 
-  const isActive = (path) => location.pathname === path;
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', fn, { passive:true });
+    return () => window.removeEventListener('scroll', fn);
+  }, []);
 
-  function handleLogout() {
-    logout();
-    navigate('/');
-    setMenuOpen(false);
-  }
+  useEffect(() => {
+    const fn = e => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, []);
+
+  const initials = user?.name
+    ? user.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase()
+    : '?';
 
   return (
-    <nav style={styles.nav}>
-      <div style={styles.tricolor}>
+    <>
+      <div style={{ position:'fixed', top:0, left:0, right:0, height:3, display:'flex', zIndex:200 }}>
         <div style={{ flex:1, background:'var(--c-green-400)' }}/>
         <div style={{ flex:1, background:'var(--c-red-500)' }}/>
         <div style={{ flex:1, background:'var(--c-gold-400)' }}/>
       </div>
 
-      <div style={styles.inner}>
-        {/* Logo */}
-        <button onClick={() => navigate('/')} style={styles.logo}>
-          <div style={styles.logoIcon}>
-            <BusIcon />
-          </div>
-          <div>
-            <div style={styles.logoText}>
-              <span style={{ color:'var(--c-green-300)' }}>bus</span>
-              <span style={{ color:'var(--c-gold-400)' }}>GO</span>
+      <nav style={{
+        position:'fixed', top:3, left:0, right:0, zIndex:100,
+        background: scrolled ? 'rgba(6,16,10,.96)' : 'rgba(6,16,10,.82)',
+        backdropFilter:'blur(20px)',
+        borderBottom: scrolled ? '1px solid var(--border-md)' : '1px solid transparent',
+        transition:'all .3s',
+        boxShadow: scrolled ? '0 4px 30px rgba(0,0,0,.3)' : 'none',
+      }}>
+        <div style={{ maxWidth:1280, margin:'0 auto', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 24px', height:64 }}>
+
+          {/* Logo */}
+          <button onClick={() => navigate('/')} style={{ background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:36, height:36, borderRadius:'var(--r-sm)', background:'linear-gradient(135deg,var(--c-green-500),var(--c-green-700))', border:'1px solid var(--c-green-400)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'var(--glow-green)' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
+                <rect x="2" y="7" width="20" height="11" rx="3"/>
+                <path d="M2 12h20M7 7V5m10 2V5"/>
+                <circle cx="7" cy="19" r="1.5" fill="currentColor" stroke="none"/>
+                <circle cx="17" cy="19" r="1.5" fill="currentColor" stroke="none"/>
+              </svg>
             </div>
-            <div style={styles.logoSub}>Cameroun</div>
+            <div>
+              <div style={{ fontFamily:'var(--font-display)', fontSize:20, fontWeight:900, lineHeight:1 }}>
+                <span style={{ color:'var(--c-green-300)' }}>bus</span>
+                <span style={{ color:'var(--c-gold-400)' }}>GO</span>
+              </div>
+              <div style={{ fontSize:9, color:'var(--text-muted)', letterSpacing:'1.5px', textTransform:'uppercase', marginTop:1 }}>
+                Cameroun
+              </div>
+            </div>
+          </button>
+
+          {/* Nav links */}
+          <div style={{ display:'flex', alignItems:'center', gap:4 }} className="hide-mobile">
+            {[
+              { path:'/',        label:'🚌 Réserver' },
+              ...(user ? [{ path:'/bookings', label:'🎫 Mes billets' }] : []),
+              ...(user?.role==='ADMIN'  ? [{ path:'/admin',  label:'⚙️ Admin',  accent:'red' }] : []),
+              ...(user?.role==='AGENCY' ? [{ path:'/agency', label:'🏢 Agence', accent:'gold' }] : []),
+            ].map(({ path, label, accent }) => (
+              <NavBtn key={path} active={isActive(path)} accent={accent} onClick={() => navigate(path)}>
+                {label}
+              </NavBtn>
+            ))}
           </div>
-        </button>
 
-        {/* Nav Links */}
-        <div style={styles.links}>
-          <NavLink active={isActive('/')} onClick={() => navigate('/')}>
-            Réserver
-          </NavLink>
-          {user && (
-            <NavLink active={isActive('/bookings')} onClick={() => navigate('/bookings')}>
-              Mes billets
-            </NavLink>
-          )}
-          {user?.role === 'ADMIN' && (
-            <NavLink active={isActive('/admin')} onClick={() => navigate('/admin')} accent="green">
-              <CMStar size={10}/> Admin
-            </NavLink>
-          )}
-          {user?.role === 'AGENCY' && (
-            <NavLink active={isActive('/agency')} onClick={() => navigate('/agency')} accent="gold">
-              Agence
-            </NavLink>
-          )}
-        </div>
+          {/* Right actions */}
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            {user?.role === 'ADMIN' && <NotifBell />}
 
-        {/* Auth */}
-        <div style={styles.auth}>
-          {user ? (
-            <div style={styles.userMenu}>
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                style={styles.userBtn}
-              >
-                <div style={styles.avatar}>
-                  {user.name?.[0]?.toUpperCase() || 'U'}
-                </div>
-                <span style={{ fontSize:13, color:'var(--text-secondary)' }} className="hide-mobile">
-                  {user.name?.split(' ')[0]}
-                </span>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="var(--text-muted)">
-                  <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-                </svg>
-              </button>
-
-              {menuOpen && (
-                <div style={styles.dropdown}>
-                  <div style={styles.dropdownHeader}>
-                    <div style={{ fontSize:13, fontWeight:600 }}>{user.name}</div>
-                    <div style={{ fontSize:11, color:'var(--text-muted)' }}>{user.email}</div>
-                    <div style={{ marginTop:4 }}>
-                      <span className={`badge badge-${user.role === 'ADMIN' ? 'red' : user.role === 'AGENCY' ? 'gold' : 'green'}`}>
-                        {user.role}
-                      </span>
+            {user ? (
+              <div ref={menuRef} style={{ position:'relative' }}>
+                <button onClick={() => setMenuOpen(!menuOpen)} style={{
+                  display:'flex', alignItems:'center', gap:9,
+                  background:'var(--bg-elevated)', border:'1px solid var(--border-md)',
+                  borderRadius:'var(--r-md)', padding:'6px 12px 6px 6px',
+                  cursor:'pointer', transition:'all .15s',
+                  boxShadow: menuOpen ? 'var(--glow-green)' : 'none',
+                  borderColor: menuOpen ? 'var(--border-lg)' : 'var(--border-md)',
+                }}>
+                  <div style={{ width:30, height:30, borderRadius:'50%', background:'linear-gradient(135deg,var(--c-green-600),var(--c-green-800))', border:'2px solid var(--c-green-500)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--font-display)', fontSize:12, fontWeight:800, color:'var(--c-green-100)' }}>
+                    {initials}
+                  </div>
+                  <div style={{ textAlign:'left' }} className="hide-mobile">
+                    <div style={{ fontSize:12, fontWeight:600, color:'var(--text-primary)', lineHeight:1.2 }}>{user.name?.split(' ')[0]}</div>
+                    <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:1 }}>
+                      {user.role==='ADMIN' ? '🔴 Admin' : user.role==='AGENCY' ? '🏢 Agence' : '👤 Voyageur'}
                     </div>
                   </div>
-                  <div style={styles.dropdownDivider}/>
-                  <DropItem onClick={() => { navigate('/bookings'); setMenuOpen(false); }}>
-                    🎫 Mes billets
-                  </DropItem>
-                  {user.role === 'ADMIN' && (
-                    <DropItem onClick={() => { navigate('/admin'); setMenuOpen(false); }}>
-                      ⚙️ Dashboard Admin
-                    </DropItem>
-                  )}
-                  {user.role === 'AGENCY' && (
-                    <DropItem onClick={() => { navigate('/agency'); setMenuOpen(false); }}>
-                      🏢 Portail Agence
-                    </DropItem>
-                  )}
-                  <div style={styles.dropdownDivider}/>
-                  <DropItem onClick={handleLogout} danger>
-                    Déconnexion
-                  </DropItem>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ display:'flex', gap:8 }}>
-              <button className="btn btn-ghost" style={{ padding:'8px 16px', fontSize:13 }}
-                onClick={() => navigate('/login')}>
+                  <span style={{ color:'var(--text-muted)', fontSize:10, transform:`rotate(${menuOpen?180:0}deg)`, transition:'transform .2s', display:'inline-block' }}>▼</span>
+                </button>
+
+                {menuOpen && (
+                  <div style={{ position:'absolute', top:'calc(100% + 8px)', right:0, background:'var(--bg-card)', border:'1px solid var(--border-md)', borderRadius:'var(--r-lg)', padding:8, minWidth:210, boxShadow:'var(--shadow-xl)', animation:'fadeDown .2s var(--ease-spring)', zIndex:200 }}>
+                    <div style={{ padding:'10px 12px 12px', borderBottom:'1px solid var(--border)', marginBottom:6 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                        <div style={{ width:38, height:38, borderRadius:'50%', background:'linear-gradient(135deg,var(--c-green-600),var(--c-green-800))', border:'2px solid var(--c-green-500)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--font-display)', fontSize:14, fontWeight:800, color:'var(--c-green-100)' }}>
+                          {initials}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight:700, fontSize:13 }}>{user.name}</div>
+                          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{user.email}</div>
+                        </div>
+                      </div>
+                    </div>
+                    {[
+                      { label:'🎫 Mes billets', path:'/bookings' },
+                      ...(user.role==='ADMIN'  ? [{ label:'⚙️ Administration', path:'/admin' }] : []),
+                      ...(user.role==='AGENCY' ? [{ label:'🏢 Mon agence',     path:'/agency' }] : []),
+                    ].map(item => (
+                      <DropItem key={item.path} onClick={() => { navigate(item.path); setMenuOpen(false); }}>{item.label}</DropItem>
+                    ))}
+                    <div style={{ borderTop:'1px solid var(--border)', marginTop:6, paddingTop:6 }}>
+                      <DropItem onClick={() => { logout(); navigate('/'); setMenuOpen(false); }} danger>🚪 Déconnexion</DropItem>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button className="btn btn-primary" style={{ padding:'9px 18px', fontSize:13 }} onClick={() => navigate('/login')}>
                 Connexion
               </button>
-              <button className="btn btn-primary" style={{ padding:'8px 16px', fontSize:13 }}
-                onClick={() => navigate('/login?mode=register')}>
-                Créer un compte
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
-
-      {menuOpen && (
-        <div
-          style={{ position:'fixed', inset:0, zIndex:99 }}
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
-    </nav>
+      </nav>
+      <div style={{ height:67 }}/>
+    </>
   );
 }
 
-function NavLink({ children, active, onClick, accent }) {
-  const colors = {
-    green: 'var(--c-green-300)',
-    gold:  'var(--c-gold-400)',
-  };
+function NavBtn({ children, active, accent, onClick }) {
+  const col = accent==='red' ? 'var(--c-red-400)' : accent==='gold' ? 'var(--c-gold-400)' : 'var(--c-green-300)';
   return (
     <button onClick={onClick} style={{
-      background: 'none',
-      border: 'none',
-      padding: '6px 14px',
-      borderRadius: 'var(--r-sm)',
-      fontSize: 14,
-      fontWeight: active ? 600 : 400,
-      color: active
-        ? (accent ? colors[accent] : 'var(--text-primary)')
-        : 'var(--text-muted)',
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      gap: 5,
-      transition: 'color .15s',
-      position: 'relative',
-    }}>
-      {children}
-      {active && (
-        <span style={{
-          position: 'absolute',
-          bottom: -1,
-          left: 14,
-          right: 14,
-          height: 2,
-          background: accent ? colors[accent] : 'var(--c-green-400)',
-          borderRadius: 'var(--r-full)',
-        }}/>
-      )}
-    </button>
+      padding:'7px 14px', borderRadius:'var(--r-sm)',
+      background: active ? 'var(--bg-elevated)' : 'transparent',
+      border: active ? '1px solid var(--border-md)' : '1px solid transparent',
+      color: active ? (accent ? col : 'var(--text-primary)') : 'var(--text-muted)',
+      fontSize:13, fontWeight: active ? 600 : 400,
+      cursor:'pointer', transition:'all .15s',
+    }}>{children}</button>
   );
 }
 
 function DropItem({ children, onClick, danger }) {
-  const [hover, setHover] = useState(false);
+  const [h, setH] = useState(false);
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        width: '100%',
-        textAlign: 'left',
-        background: hover ? 'var(--bg-elevated)' : 'none',
-        border: 'none',
-        padding: '9px 16px',
-        fontSize: 13,
-        color: danger ? 'var(--c-red-400)' : 'var(--text-secondary)',
-        cursor: 'pointer',
-        borderRadius: 'var(--r-sm)',
-        transition: 'all .1s',
-      }}>
+    <button onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{ width:'100%', padding:'9px 12px', borderRadius:'var(--r-sm)', background: h ? (danger?'rgba(192,57,43,.1)':'var(--bg-elevated)') : 'transparent', border:'none', color: danger&&h ? 'var(--c-red-400)' : 'var(--text-primary)', fontSize:13, cursor:'pointer', textAlign:'left', transition:'all .12s', display:'block' }}>
       {children}
     </button>
   );
 }
-
-const styles = {
-  nav: {
-    position: 'sticky',
-    top: 0,
-    zIndex: 100,
-    background: 'rgba(8,15,10,.92)',
-    backdropFilter: 'blur(16px)',
-    WebkitBackdropFilter: 'blur(16px)',
-    borderBottom: '1px solid var(--border)',
-  },
-  tricolor: {
-    display: 'flex',
-    height: 2,
-  },
-  inner: {
-    maxWidth: 1280,
-    margin: '0 auto',
-    padding: '0 24px',
-    height: 60,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 24,
-  },
-  logo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    padding: 0,
-    flexShrink: 0,
-  },
-  logoIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 'var(--r-md)',
-    background: 'var(--c-green-700)',
-    border: '1px solid var(--border-md)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'var(--c-green-200)',
-  },
-  logoText: {
-    fontFamily: 'var(--font-display)',
-    fontSize: 20,
-    fontWeight: 800,
-    lineHeight: 1,
-  },
-  logoSub: {
-    fontSize: 9,
-    color: 'var(--text-muted)',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginTop: 1,
-  },
-  links: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 2,
-    flex: 1,
-  },
-  auth: {
-    flexShrink: 0,
-  },
-  userMenu: {
-    position: 'relative',
-  },
-  userBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    background: 'var(--bg-elevated)',
-    border: '1px solid var(--border-md)',
-    borderRadius: 'var(--r-full)',
-    padding: '5px 12px 5px 5px',
-    cursor: 'pointer',
-    transition: 'all .15s',
-  },
-  avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: '50%',
-    background: 'var(--c-green-600)',
-    color: 'var(--c-green-100)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 12,
-    fontWeight: 700,
-  },
-  dropdown: {
-    position: 'absolute',
-    top: 'calc(100% + 8px)',
-    right: 0,
-    width: 220,
-    background: 'var(--bg-card)',
-    border: '1px solid var(--border-md)',
-    borderRadius: 'var(--r-lg)',
-    boxShadow: '0 20px 50px rgba(0,0,0,.4), var(--glow-green)',
-    overflow: 'hidden',
-    zIndex: 101,
-    animation: 'fadeUp .2s var(--ease) both',
-  },
-  dropdownHeader: {
-    padding: '14px 16px',
-    background: 'var(--bg-elevated)',
-  },
-  dropdownDivider: {
-    height: 1,
-    background: 'var(--border)',
-    margin: '4px 0',
-  },
-};
