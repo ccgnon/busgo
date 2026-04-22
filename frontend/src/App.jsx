@@ -8,6 +8,7 @@ import Bookings    from './pages/Bookings';
 import Login       from './pages/Login';
 import Admin       from './pages/Admin';
 import Agency      from './pages/Agency';
+import ChatWidget  from './components/ChatWidget';
 
 export default function App() {
   const initAuth = useStore(s => s.initAuth);
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/admin"    element={<Admin />} />
         <Route path="/agency"   element={<Agency />} />
       </Routes>
+      <ChatWidget />
     </BrowserRouter>
   );
 }

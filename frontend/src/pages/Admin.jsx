@@ -271,7 +271,7 @@ export default function Admin() {
     <div style={{ maxWidth:1300, margin:'0 auto', padding:'28px 24px 80px' }}>
 
       {/* ── Header ── */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:24, gap:16, flexWrap:'wrap' }}>
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:20, gap:12, flexWrap:'wrap' }}>
         <div>
           <h1 style={{ fontFamily:'var(--font-display)', fontSize:26, fontWeight:900, marginBottom:4 }}>
             Dashboard Admin
@@ -304,7 +304,8 @@ export default function Admin() {
       </div>
 
       {/* ── Navigation tabs ── */}
-      <div style={{ display:'flex', gap:4, background:'var(--bg-raised)', border:'1px solid var(--border)', borderRadius:'var(--r-md)', padding:4, marginBottom:24, flexWrap:'wrap' }}>
+      <div className="admin-tabs-wrap" style={{ marginBottom:20 }}>
+      <div style={{ display:'flex', gap:4, background:'var(--bg-raised)', border:'1px solid var(--border)', borderRadius:'var(--r-md)', padding:4, minWidth:'max-content' }}>
         {TABS.map(t => (
           <button key={t.id}
             onClick={() => { setTab(t.id); setSearch(''); setRoleFilter('ALL'); setStatusFilter('ALL'); }}
@@ -320,7 +321,7 @@ export default function Admin() {
             <Icon d={t.icon} size={13}/> {t.label}
           </button>
         ))}
-      </div>
+      </div></div>
 
       {/* ── Loader ── */}
       {loading && (
@@ -408,48 +409,70 @@ export default function Admin() {
         <div className="fade-in">
           {/* Barre d'outils */}
           <div style={{ display:'flex', gap:10, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
-            <SearchBar value={search} onChange={setSearch} placeholder="Rechercher par ID, passager, code…"/>
+            <SearchBar value={search} onChange={setSearch} placeholder="ID, passager, téléphone, code…"/>
             <select className="input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-              style={{ width:'auto', fontSize:12, padding:'10px 12px' }}>
+              style={{ width:'auto', fontSize:12, padding:'10px 12px', flexShrink:0 }}>
               <option value="ALL">Tous les statuts</option>
-              <option value="CONFIRMED">Confirmé</option>
-              <option value="VALIDATED">Validé</option>
-              <option value="CANCELLED">Annulé</option>
-              <option value="EXPIRED">Expiré</option>
+              <option value="CONFIRMED">✅ Confirmé</option>
+              <option value="VALIDATED">✔️ Validé</option>
+              <option value="CANCELLED">❌ Annulé</option>
+              <option value="EXPIRED">⏰ Expiré</option>
             </select>
-            <div style={{ fontSize:12, color:'var(--text-muted)', flexShrink:0 }}>
-              {filteredBookings.length} résultat{filteredBookings.length>1?'s':''}
+            <div style={{ display:'flex', gap:10, fontSize:12, color:'var(--text-muted)', flexShrink:0, alignItems:'center' }}>
+              <span>{filteredBookings.length} résultat{filteredBookings.length>1?'s':''}</span>
+              {statusFilter !== 'ALL' && (
+                <button onClick={() => setStatusFilter('ALL')}
+                  style={{ fontSize:11, color:'var(--c-green-300)', background:'none', border:'none', cursor:'pointer' }}>
+                  Réinitialiser
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          {/* Vue cartes sur mobile, tableau sur desktop */}
+          <div className="hide-tablet">
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {filteredBookings.length === 0 ? (
+                <div style={{ textAlign:'center', padding:'40px 20px', color:'var(--text-muted)' }}>
+                  <div style={{ fontSize:32, marginBottom:10, opacity:.3 }}>🎫</div>
+                  Aucune réservation trouvée
+                </div>
+              ) : filteredBookings.map(b => (
+                <BookingCard key={b.id} booking={b}
+                  onCancel={() => askDelete('booking', b.id, `Réservation ${b.id} (${b.passengerName||'?'})`)}
+                  onDelete={() => askDelete('booking', b.id, `Réservation ${b.id}`)}/>
+              ))}
+            </div>
+          </div>
+
+          {/* Tableau desktop */}
+          <div className="card show-tablet" style={{ padding:0, overflow:'hidden' }}>
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr>{['Référence','Trajet','Passager','Téléphone','Date voyage','Siège','Total','Mode paiement','Statut','Code','Actions'].map(h => <th key={h}>{h}</th>)}</tr>
+                  <tr>{['Référence','Trajet','Passager','Date','Siège','Total','Statut','Code','Actions'].map(h => <th key={h}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {filteredBookings.length === 0 ? (
-                    <tr><td colSpan={11} style={{ textAlign:'center', padding:32, color:'var(--text-muted)' }}>Aucune réservation trouvée</td></tr>
+                    <tr><td colSpan={9} style={{ textAlign:'center', padding:32, color:'var(--text-muted)' }}>Aucune réservation trouvée</td></tr>
                   ) : filteredBookings.map(b => (
                     <tr key={b.id}>
                       <td><span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--c-green-200)' }}>{b.id}</span></td>
                       <td style={{ fontSize:12, whiteSpace:'nowrap' }}>{b.trip?.from} → {b.trip?.to}</td>
-                      <td style={{ fontSize:12 }}>{b.passengerName || '—'}</td>
-                      <td style={{ fontSize:11, color:'var(--text-muted)' }}>{b.passengerPhone || '—'}</td>
+                      <td>
+                        <div style={{ fontSize:12, fontWeight:500 }}>{b.passengerName||'—'}</div>
+                        <div style={{ fontSize:10, color:'var(--text-muted)' }}>{b.passengerPhone||''}</div>
+                      </td>
                       <td style={{ fontSize:12, whiteSpace:'nowrap' }}>{b.travelDate}</td>
                       <td style={{ textAlign:'center', fontSize:12 }}>{b.seatNum}</td>
-                      <td style={{ color:'var(--c-gold-400)', fontWeight:600, fontSize:12, whiteSpace:'nowrap' }}>{FCFA(b.totalPrice)}</td>
-                      <td style={{ fontSize:11 }}>
-                        <span className="badge badge-muted">{b.paymentMethod}</span>
-                      </td>
+                      <td style={{ color:'var(--c-gold-400)', fontWeight:700, fontSize:12, whiteSpace:'nowrap' }}>{FCFA(b.totalPrice)}</td>
                       <td><StatusBadge status={b.status}/></td>
                       <td><span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--c-green-300)' }}>{b.validationCode}</span></td>
                       <td>
                         <div style={{ display:'flex', gap:4 }}>
                           {b.status === 'CONFIRMED' && (
-                            <ActionBtn icon={I.x} label="Annuler" danger
-                              onClick={() => askDelete('booking', b.id, `Réservation ${b.id}`)}/>
+                            <ActionBtn icon={I.x} label="Annuler la réservation" danger
+                              onClick={() => askDelete('booking', b.id, `Réservation ${b.id} (${b.passengerName||'?'}) — ${b.trip?.from} → ${b.trip?.to} le ${b.travelDate}`)}/>
                           )}
                           <ActionBtn icon={I.trash} label="Supprimer" danger
                             onClick={() => askDelete('booking', b.id, `Réservation ${b.id}`)}/>
@@ -1046,6 +1069,50 @@ function InviteAgencyForm({ onSend, onCancel }) {
           {loading ? '⏳ Envoi en cours…' : '✉️ Envoyer l\'invitation'}
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ── BookingCard (vue mobile des réservations admin) ─────────────────────── */
+function BookingCard({ booking: b, onCancel, onDelete }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ background:'var(--bg-card)', border:'1px solid var(--border-md)', borderRadius:'var(--r-lg)', overflow:'hidden' }}>
+      <div style={{ height:2, background:`linear-gradient(90deg,${b.status==='CONFIRMED'?'var(--c-green-400)':b.status==='CANCELLED'?'var(--c-red-400)':b.status==='VALIDATED'?'#22c55e':'var(--text-muted)'},transparent)` }}/>
+      <div style={{ padding:'14px 16px', cursor:'pointer' }} onClick={() => setOpen(!open)}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
+          <div>
+            <div style={{ fontSize:14, fontWeight:700, marginBottom:3 }}>{b.trip?.from||'?'} → {b.trip?.to||'?'}</div>
+            <div style={{ fontSize:11, color:'var(--text-muted)' }}>{b.passengerName||'—'} · {b.travelDate} · Siège {b.seatNum}</div>
+          </div>
+          <div style={{ textAlign:'right', flexShrink:0 }}>
+            <StatusBadge status={b.status}/>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:15, fontWeight:900, color:'var(--c-gold-400)', marginTop:3 }}>{FCFA(b.totalPrice)}</div>
+          </div>
+        </div>
+      </div>
+      {open && (
+        <div style={{ padding:'0 16px 14px', borderTop:'1px solid var(--border)' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, margin:'12px 0' }}>
+            {[['Réf', b.id],['Code', b.validationCode],['Paiement', b.paymentMethod],['Téléphone', b.passengerPhone||'—']].map(([k,v]) => (
+              <div key={k} style={{ background:'var(--bg-elevated)', borderRadius:'var(--r-sm)', padding:'8px 10px' }}>
+                <div style={{ fontSize:9, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:.6, marginBottom:2 }}>{k}</div>
+                <div style={{ fontSize:11, fontFamily:k==='Réf'||k==='Code'?'var(--font-mono)':'inherit', fontWeight:600 }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'flex', gap:6 }}>
+            {b.status === 'CONFIRMED' && (
+              <button onClick={onCancel} style={{ flex:1, padding:'8px', borderRadius:'var(--r-sm)', background:'rgba(192,57,43,.1)', border:'1px solid rgba(192,57,43,.3)', color:'var(--c-red-400)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                ❌ Annuler
+              </button>
+            )}
+            <button onClick={onDelete} style={{ flex:1, padding:'8px', borderRadius:'var(--r-sm)', background:'rgba(192,57,43,.05)', border:'1px solid var(--border-md)', color:'var(--text-muted)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+              🗑️ Supprimer
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

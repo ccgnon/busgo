@@ -585,3 +585,39 @@ tbody tr:last-child td { border-bottom: none; }
   height: 100%; background: linear-gradient(90deg, var(--c-green-400), var(--c-green-300));
   border-radius: var(--r-full); transition: width .5s var(--ease);
 }
+
+/* ── Classes responsives admin ── */
+@media (min-width: 768px) {
+  .hide-tablet  { display: none !important; }
+  .show-tablet  { display: block !important; }
+}
+@media (max-width: 767px) {
+  .hide-tablet  { display: flex !important; flex-direction: column; }
+  .show-tablet  { display: none !important; }
+
+  /* Admin tabs scrollable */
+  .admin-tabs-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .admin-tabs-wrap::-webkit-scrollbar { display: none; }
+
+  /* Dashboard grid responsive */
+  .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .grid-2 { grid-template-columns: 1fr !important; }
+
+  /* Padding réduit mobile */
+  .modal { padding: 20px 16px; }
+  .hero-content { padding: 24px 18px; }
+}
+@media (max-width: 480px) {
+  .grid-4 { grid-template-columns: 1fr 1fr !important; }
+  .stat-value { font-size: 22px !important; }
+}
+
+/* ── Scrollable horizontal sur mobile ── */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}

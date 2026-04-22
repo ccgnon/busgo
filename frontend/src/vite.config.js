@@ -6,7 +6,13 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: 'http://localhost:4000', changeOrigin: true },
+      '/api':   { target: 'http://localhost:4000', changeOrigin: true },
+      '/agent': { target: 'http://localhost:4006', changeOrigin: true, rewrite: p => p.replace(/^\/agent/, '') },
     },
+  },
+  define: {
+    'import.meta.env.VITE_AGENT_URL': JSON.stringify(
+      process.env.VITE_AGENT_URL || 'http://localhost:4006'
+    ),
   },
 });
