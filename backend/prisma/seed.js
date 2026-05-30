@@ -204,7 +204,7 @@ async function main() {
     create: {
       id:           'user_demo',
       email:        'demo@busgo.cm',
-      name:         'Kouam Jean',
+      name:         'KANEMBANG Stéphane',
       passwordHash: hash,
       role:         'USER',
     },
