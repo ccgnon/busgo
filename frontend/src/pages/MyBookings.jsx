@@ -1,103 +1,198 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import Navbar from '../components/Navbar';
 
-const STATUS_LABEL = { PENDING:'En attente', CONFIRMED:'Confirmé', CANCELLED:'Annulé', COMPLETED:'Terminé', VALIDATED:'Validé' };
-const STATUS_COLOR = { PENDING:'#f59e0b', CONFIRMED:'#007a5e', CANCELLED:'#ce1126', COMPLETED:'#3b82f6', VALIDATED:'#007a5e' };
+const STATUS_CONFIG = {
+  CONFIRMED: { label: 'Confirmé', bg: '#dcfce7', color: '#166534', icon: '✅' },
+  PENDING:   { label: 'En attente', bg: '#fef9c3', color: '#854d0e', icon: '⏳' },
+  CANCELLED: { label: 'Annulé', bg: '#fee2e2', color: '#991b1b', icon: '❌' },
+  COMPLETED: { label: 'Terminé', bg: '#f3f4f6', color: '#374151', icon: '🏁' },
+};
+
+const CITY = { YDE:'Yaoundé', DLA:'Douala', BFT:'Bafoussam', NGD:'Ngaoundéré', LIM:'Limbé', BUE:'Buéa', EDO:'Ébolowa', BSG:'Bertoua' };
 
 export default function MyBookings() {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [cancelling, setCancelling] = useState(null);
+  const [filter, setFilter] = useState('all');
+
+  const token = localStorage.getItem('busgo_token');
 
   useEffect(() => {
-    const token = localStorage.getItem('busgo_token');
     if (!token) { navigate('/connexion'); return; }
     axios.get('/api/bookings/my', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => setBookings(r.data.bookings || r.data || []))
-      .catch(e => setErr(e.response?.status === 401 ? 'Session expirée. Reconnectez-vous.' : 'Erreur de chargement.'))
+      .catch(() => setErr('Impossible de charger vos réservations.'))
       .finally(() => setLoading(false));
-  }, [navigate]);
+  }, [token, navigate]);
 
   const cancel = async (id) => {
     if (!window.confirm('Annuler cette réservation ?')) return;
-    const token = localStorage.getItem('busgo_token');
+    setCancelling(id);
     try {
       await axios.post(`/api/bookings/${id}/cancel`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      setBookings(b => b.map(x => x.id === id ? {...x, status:'CANCELLED'} : x));
-    } catch { alert('Impossible d\'annuler.'); }
+      setBookings(b => b.map(bk => bk.id === id ? { ...bk, status: 'CANCELLED' } : bk));
+    } catch { alert('Erreur lors de l\'annulation.'); }
+    finally { setCancelling(null); }
   };
 
-  const fmt = d => new Date(d).toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' });
-  const fmtT = d => new Date(d).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+  const fmt = d => new Date(d).toLocaleString('fr-FR', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const fmtTime = d => new Date(d).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+  const fmtDate = d => new Date(d).toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' });
+
+  const filtered = filter === 'all' ? bookings : bookings.filter(b => b.status === filter);
 
   return (
-    <div style={{minHeight:'100vh', background:'#f5f0e8'}}>
-      <div style={{background:'#1a3a2a', color:'#fff', padding:'16px 24px', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
-        <div style={{display:'flex', alignItems:'center', gap:16}}>
-          <Link to="/" style={{color:'#fcd116', textDecoration:'none', fontWeight:700, fontSize:'1.2rem'}}>🚌 busGO</Link>
-          <span style={{color:'rgba(255,255,255,.4)'}}>›</span>
-          <span style={{fontSize:'.85rem', opacity:.8}}>Mes voyages</span>
+    <div style={{ minHeight: '100vh', background: '#f0ece4', fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}>
+      <Navbar />
+
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(135deg,#1a3a2a,#2d5c3f)', paddingTop: 64 }}>
+        <div style={{ maxWidth: 860, margin: '0 auto', padding: '32px clamp(16px,4vw,32px) 28px' }}>
+          <h1 style={{ fontFamily: 'Georgia,serif', fontSize: 'clamp(1.6rem,3vw,2.2rem)', color: '#fff', fontWeight: 700, marginBottom: 6 }}>
+            🎫 Mes voyages
+          </h1>
+          <p style={{ color: 'rgba(255,255,255,.6)', fontSize: '.9rem' }}>
+            {bookings.length} réservation{bookings.length > 1 ? 's' : ''} au total
+          </p>
+
+          {/* Filter tabs */}
+          {bookings.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 20, flexWrap: 'wrap' }}>
+              {[['all', 'Toutes'], ['CONFIRMED', 'Confirmées'], ['PENDING', 'En attente'], ['CANCELLED', 'Annulées'], ['COMPLETED', 'Terminées']].map(([val, lbl]) => (
+                <button key={val} onClick={() => setFilter(val)}
+                  style={{ padding: '6px 16px', borderRadius: 50, border: 'none', cursor: 'pointer', fontSize: '.8rem', fontWeight: 700, background: filter === val ? '#fcd116' : 'rgba(255,255,255,.12)', color: filter === val ? '#1a3a2a' : 'rgba(255,255,255,.75)', transition: 'all .2s' }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <button onClick={() => { localStorage.removeItem('busgo_token'); navigate('/connexion'); }} style={{background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.2)', color:'#fff', padding:'7px 16px', borderRadius:8, cursor:'pointer', fontSize:'.8rem'}}>Déconnexion</button>
       </div>
 
-      <div style={{maxWidth:780, margin:'0 auto', padding:'28px 16px'}}>
-        <h2 style={{fontFamily:'Georgia,serif', fontSize:'1.5rem', color:'#1a3a2a', marginBottom:24}}>Mes réservations</h2>
-
-        {loading && <div style={{textAlign:'center', padding:80, color:'#8a7d6e'}}>Chargement…</div>}
-        {err && <div style={{background:'#fef2f2', border:'1px solid #fca5a5', color:'#ce1126', padding:'12px 16px', borderRadius:12, marginBottom:16}}>{err} <Link to="/connexion" style={{color:'#ce1126', fontWeight:700}}>Se connecter</Link></div>}
-
-        {!loading && !err && bookings.length === 0 && (
-          <div style={{textAlign:'center', padding:'60px 20px', background:'#fff', borderRadius:16, border:'1.5px solid #e8e0d0'}}>
-            <div style={{fontSize:'3rem', marginBottom:16}}>🎫</div>
-            <h3 style={{color:'#1a3a2a', marginBottom:8}}>Aucune réservation</h3>
-            <p style={{color:'#8a7d6e', marginBottom:20}}>Vous n'avez pas encore réservé de voyage.</p>
-            <Link to="/" style={{padding:'10px 24px', background:'#007a5e', color:'#fff', borderRadius:10, textDecoration:'none', fontWeight:600}}>Réserver maintenant</Link>
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px clamp(16px,4vw,32px)' }}>
+        {/* Loading */}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '60px 0' }}>
+            <div style={{ width: 48, height: 48, border: '4px solid #e8e0d0', borderTopColor: '#007a5e', borderRadius: '50%', animation: 'spin .8s linear infinite', margin: '0 auto 16px' }} />
+            <p style={{ color: '#8a7d6e' }}>Chargement de vos réservations…</p>
           </div>
         )}
 
-        {bookings.map(b => (
-          <div key={b.id} style={{background:'#fff', borderRadius:16, border:'1.5px solid #e8e0d0', padding:'18px 22px', marginBottom:12, boxShadow:'0 2px 12px rgba(0,0,0,.05)'}}>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:8}}>
-              <div style={{flex:1}}>
-                <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:6}}>
-                  <span style={{fontFamily:'monospace', fontWeight:700, color:'#1a3a2a', fontSize:'.95rem'}}>{b.reference}</span>
-                  <span style={{padding:'2px 10px', borderRadius:20, background: `${STATUS_COLOR[b.status]}22`, color: STATUS_COLOR[b.status], fontSize:'.72rem', fontWeight:700}}>
-                    {STATUS_LABEL[b.status] || b.status}
-                  </span>
-                </div>
-                <div style={{color:'#4a4035', fontWeight:600, marginBottom:3}}>
-                  {b.trip?.from?.city || '—'} → {b.trip?.to?.city || '—'}
-                </div>
-                <div style={{color:'#8a7d6e', fontSize:'.82rem'}}>
-                  {b.trip?.departureTime ? `${fmt(b.trip.departureTime)} · ${fmtT(b.trip.departureTime)}` : '—'}
-                  {' · '} {b.trip?.agency?.name || '—'}
-                </div>
-                <div style={{color:'#8a7d6e', fontSize:'.78rem', marginTop:4}}>
-                  Siège(s) : {b.seatNumbers?.join(', ') || '—'} · {b.passengerCount || 1} pax
-                </div>
+        {/* Error */}
+        {!loading && err && (
+          <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', color: '#b91c1c', padding: '16px 20px', borderRadius: 14 }}>⚠️ {err}</div>
+        )}
+
+        {/* Empty */}
+        {!loading && !err && bookings.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: 20, border: '1.5px solid #e8e0d0', marginTop: 12 }}>
+            <div style={{ fontSize: '4rem', marginBottom: 20 }}>🎫</div>
+            <h3 style={{ fontFamily: 'Georgia,serif', fontSize: '1.4rem', color: '#1a3a2a', marginBottom: 10 }}>Aucune réservation</h3>
+            <p style={{ color: '#8a7d6e', marginBottom: 28, maxWidth: 320, margin: '0 auto 28px' }}>Vous n'avez pas encore réservé de voyage. Explorez nos destinations !</p>
+            <Link to="/" style={{ padding: '12px 28px', background: '#007a5e', color: '#fff', borderRadius: 12, textDecoration: 'none', fontWeight: 700 }}>Trouver un voyage →</Link>
+          </div>
+        )}
+
+        {/* Booking cards */}
+        {filtered.map(bk => {
+          const status = STATUS_CONFIG[bk.status] || STATUS_CONFIG.PENDING;
+          const canCancel = bk.status === 'CONFIRMED' || bk.status === 'PENDING';
+          return (
+            <div key={bk.id} style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #e8e0d0', marginBottom: 16, overflow: 'hidden', boxShadow: '0 2px 14px rgba(0,0,0,.05)' }}>
+              {/* Status banner */}
+              <div style={{ background: status.bg, padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ color: status.color, fontWeight: 700, fontSize: '.85rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {status.icon} {status.label}
+                </span>
+                <span style={{ color: '#8a7d6e', fontSize: '.75rem' }}>Réservé le {fmt(bk.createdAt)}</span>
               </div>
-              <div style={{textAlign:'right'}}>
-                <div style={{fontWeight:700, color:'#007a5e', fontSize:'1.1rem', marginBottom:4}}>
-                  {b.totalPrice?.toLocaleString('fr-FR')} FCFA
-                </div>
-                {b.validationCode && b.status !== 'CANCELLED' && (
-                  <div style={{background:'#1a3a2a', color:'#fcd116', padding:'4px 12px', borderRadius:8, fontSize:'.78rem', fontFamily:'monospace', fontWeight:700, marginBottom:8}}>
-                    Code : {b.validationCode}
+
+              <div style={{ padding: '20px' }}>
+                {/* Route */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1a3a2a' }}>
+                      {bk.trip?.departureTime ? fmtTime(bk.trip.departureTime) : '--:--'}
+                    </div>
+                    <div style={{ fontSize: '.78rem', color: '#8a7d6e', fontWeight: 600 }}>
+                      {CITY[bk.trip?.from?.code] || bk.trip?.from?.city || '—'}
+                    </div>
                   </div>
-                )}
-                {(b.status === 'PENDING' || b.status === 'CONFIRMED') && (
-                  <button onClick={() => cancel(b.id)} style={{padding:'6px 14px', background:'#fef2f2', color:'#ce1126', border:'1px solid #fca5a5', borderRadius:8, cursor:'pointer', fontSize:'.78rem', fontWeight:600}}>
-                    Annuler
-                  </button>
+
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 80 }}>
+                    <div style={{ fontSize: '.72rem', color: '#8a7d6e' }}>
+                      {bk.trip?.departureTime ? fmtDate(bk.trip.departureTime) : ''}
+                    </div>
+                    <div style={{ height: 3, width: '100%', background: 'linear-gradient(to right,#007a5e,#fcd116)', borderRadius: 3 }} />
+                    <div style={{ fontSize: '.7rem', color: '#8a7d6e' }}>
+                      {bk.trip?.agency?.name || 'Agence'}
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1a3a2a' }}>
+                      {bk.trip?.arrivalTime ? fmtTime(bk.trip.arrivalTime) : '--:--'}
+                    </div>
+                    <div style={{ fontSize: '.78rem', color: '#8a7d6e', fontWeight: 600 }}>
+                      {CITY[bk.trip?.to?.code] || bk.trip?.to?.city || '—'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Details grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 12, marginBottom: 20 }}>
+                  {[
+                    { label: 'Référence', value: bk.reference || bk.id?.slice(0,8).toUpperCase(), mono: true },
+                    { label: 'Code validation', value: bk.validationCode || '——', mono: true, highlight: true },
+                    { label: 'Passagers', value: `${bk.seats || bk.passengerCount || 1} siège(s)` },
+                    { label: 'Total payé', value: `${bk.totalPrice?.toLocaleString('fr-FR') || '—'} FCFA`, bold: true },
+                  ].map(d => (
+                    <div key={d.label} style={{ background: d.highlight ? '#f0fdf4' : '#f8f4ee', borderRadius: 10, padding: '10px 14px', border: d.highlight ? '1px solid #86efac' : 'none' }}>
+                      <div style={{ fontSize: '.68rem', fontWeight: 700, color: '#8a7d6e', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 4 }}>{d.label}</div>
+                      <div style={{ fontFamily: d.mono ? 'monospace' : 'inherit', fontSize: d.bold ? '1rem' : '.88rem', fontWeight: d.bold ? 800 : 700, color: d.highlight ? '#166534' : '#1a3a2a', letterSpacing: d.mono ? '.05em' : 0 }}>
+                        {d.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Actions */}
+                {canCancel && (
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                    <button onClick={() => cancel(bk.id)} disabled={cancelling === bk.id}
+                      style={{ padding: '9px 20px', background: cancelling === bk.id ? '#e5e7eb' : '#fef2f2', color: '#b91c1c', border: '1.5px solid #fca5a5', borderRadius: 10, fontWeight: 700, cursor: cancelling === bk.id ? 'not-allowed' : 'pointer', fontSize: '.85rem' }}>
+                      {cancelling === bk.id ? '⏳ Annulation…' : '❌ Annuler ce voyage'}
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
+          );
+        })}
+
+        {/* Filtered empty */}
+        {!loading && !err && bookings.length > 0 && filtered.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '40px', background: '#fff', borderRadius: 20, border: '1.5px solid #e8e0d0' }}>
+            <p style={{ color: '#8a7d6e' }}>Aucune réservation dans cette catégorie.</p>
           </div>
-        ))}
+        )}
+
+        {/* New trip CTA */}
+        {!loading && !err && (
+          <div style={{ textAlign: 'center', marginTop: 32 }}>
+            <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 28px', background: '#007a5e', color: '#fff', borderRadius: 12, textDecoration: 'none', fontWeight: 700, boxShadow: '0 4px 16px rgba(0,122,94,.25)' }}>
+              🔍 Réserver un nouveau voyage
+            </Link>
+          </div>
+        )}
       </div>
+
+      <style>{`@keyframes spin { to { transform:rotate(360deg) } } * { box-sizing:border-box }`}</style>
     </div>
   );
 }

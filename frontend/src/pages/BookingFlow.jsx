@@ -1,259 +1,328 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import Navbar from '../components/Navbar';
 
-const STEP_LABELS = ['Siège', 'Passager', 'Paiement', 'Confirmation'];
+const CITY = { YDE:'Yaoundé', DLA:'Douala', BFT:'Bafoussam', NGD:'Ngaoundéré', LIM:'Limbé', BUE:'Buéa', EDO:'Ébolowa', BSG:'Bertoua' };
+
+const STEPS = ['Voyage', 'Passagers', 'Paiement', 'Confirmation'];
 
 export default function BookingFlow() {
   const { tripId } = useParams();
-  const [sp]       = useSearchParams();
-  const navigate   = useNavigate();
-  const pax        = parseInt(sp.get('pax') || '1');
+  const [sp] = useSearchParams();
+  const navigate = useNavigate();
 
-  const [trip,    setTrip]    = useState(null);
-  const [seats,   setSeats]   = useState([]);
+  const pax = parseInt(sp.get('pax') || '1');
+  const token = localStorage.getItem('busgo_token');
+
+  const [step, setStep] = useState(1);
+  const [trip, setTrip] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [step,    setStep]    = useState(0);
-  const [sel,     setSel]     = useState([]);
-  const [form,    setForm]    = useState({ name:'', phone:'', email:'', nationalId:'' });
-  const [payMethod, setPayMethod] = useState('MTN_MOMO');
-  const [booking, setBooking] = useState(null);
-  const [err,     setErr]     = useState('');
+  const [err, setErr] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [booking, setBooking] = useState(null);
+
+  const [passengers, setPassengers] = useState(
+    Array.from({ length: pax }, () => ({ name: '', phone: '', idNumber: '' }))
+  );
+  const [payMethod, setPayMethod] = useState('momo');
+  const [payPhone, setPayPhone] = useState('');
 
   useEffect(() => {
-    Promise.all([
-      axios.get(`/api/trips/${tripId}`),
-      axios.get(`/api/trips/${tripId}/seats`)
-    ]).then(([t, s]) => {
-      setTrip(t.data.trip || t.data);
-      setSeats(s.data.seats || s.data || []);
-    }).catch(() => setErr('Voyage introuvable.')).finally(() => setLoading(false));
-  }, [tripId]);
+    if (!token) { navigate('/connexion'); return; }
+    axios.get(`/api/trips/${tripId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => setTrip(r.data.trip || r.data))
+      .catch(() => setErr('Impossible de charger ce voyage.'))
+      .finally(() => setLoading(false));
+  }, [tripId, token, navigate]);
 
-  const toggleSeat = (seatNum) => {
-    if (seats.find(s => s.seatNumber === seatNum)?.status === 'TAKEN') return;
-    setSel(prev =>
-      prev.includes(seatNum)
-        ? prev.filter(n => n !== seatNum)
-        : prev.length < pax ? [...prev, seatNum] : prev
-    );
+  const updatePassenger = (i, k, v) => {
+    setPassengers(p => p.map((ps, idx) => idx === i ? { ...ps, [k]: v } : ps));
   };
 
-  const confirmBooking = async () => {
+  const step1Valid = trip != null;
+  const step2Valid = passengers.every(p => p.name.trim().length >= 2);
+  const step3Valid = payPhone.length >= 9;
+
+  const confirm = async () => {
     setSubmitting(true); setErr('');
     try {
-      const token = localStorage.getItem('busgo_token');
       const res = await axios.post('/api/bookings', {
-        tripId, seatNumbers: sel, passengerName: form.name,
-        passengerPhone: form.phone, passengerEmail: form.email,
-        nationalId: form.nationalId, paymentMethod: payMethod,
-        passengerCount: pax
-      }, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        tripId,
+        passengers,
+        seats: pax,
+        paymentMethod: payMethod,
+        paymentPhone: payPhone,
+      }, { headers: { Authorization: `Bearer ${token}` } });
       setBooking(res.data.booking || res.data);
-      setStep(3);
-    } catch(e) {
-      setErr(e.response?.data?.error || 'Erreur lors de la réservation.');
+      setStep(4);
+    } catch (e) {
+      setErr(e.response?.data?.error || 'Erreur lors de la réservation. Réessayez.');
     } finally { setSubmitting(false); }
   };
 
   const fmt = d => new Date(d).toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
-  const fmtDate = d => new Date(d).toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const fmtDate = d => new Date(d).toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+  const duration = m => m ? `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}` : '—';
 
-  const S = {
-    wrap: { minHeight:'100vh', background:'#f5f0e8' },
-    head: { background:'#1a3a2a', color:'#fff', padding:'16px 24px', display:'flex', alignItems:'center', gap:16 },
-    inner: { maxWidth:680, margin:'0 auto', padding:'28px 16px' },
-    card: { background:'#fff', borderRadius:16, border:'1.5px solid #e8e0d0', padding:24, marginBottom:16, boxShadow:'0 2px 12px rgba(0,0,0,.06)' },
-    label: { display:'block', fontSize:'.72rem', fontWeight:700, color:'#8a7d6e', letterSpacing:'.06em', textTransform:'uppercase', marginBottom:5 },
-    input: { width:'100%', padding:'11px 14px', borderRadius:10, border:'1.5px solid #d4c9b5', fontSize:'.9rem', background:'#f8f4ee', outline:'none', boxSizing:'border-box' },
-    btn: { padding:'13px 28px', background:'#007a5e', color:'#fff', border:'none', borderRadius:12, fontWeight:700, cursor:'pointer', fontSize:'.95rem', width:'100%', marginTop:16 },
-    seatFree: { width:36, height:36, borderRadius:8, border:'2px solid #007a5e', background:'#f0faf7', cursor:'pointer', fontSize:'.7rem', display:'flex', alignItems:'center', justifyContent:'center', color:'#007a5e', fontWeight:600 },
-    seatSel: { width:36, height:36, borderRadius:8, border:'2px solid #007a5e', background:'#007a5e', cursor:'pointer', fontSize:'.7rem', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:700 },
-    seatTaken: { width:36, height:36, borderRadius:8, border:'2px solid #ddd', background:'#f0f0f0', cursor:'not-allowed', fontSize:'.7rem', display:'flex', alignItems:'center', justifyContent:'center', color:'#bbb' },
-  };
-
-  if (loading) return <div style={S.wrap}><div style={{...S.head}}><Link to="/" style={{color:'#fcd116', textDecoration:'none', fontWeight:700}}>🚌 busGO</Link></div><div style={{textAlign:'center', padding:80, color:'#8a7d6e'}}>Chargement…</div></div>;
-  if (err && !trip) return <div style={S.wrap}><div style={S.head}><Link to="/" style={{color:'#fcd116', textDecoration:'none', fontWeight:700}}>🚌 busGO</Link></div><div style={{textAlign:'center', padding:80}}><p style={{color:'#ce1126', marginBottom:16}}>{err}</p><Link to="/" style={{color:'#007a5e'}}>← Retour</Link></div></div>;
+  const inputStyle = { width: '100%', padding: '12px 14px', borderRadius: 11, border: '2px solid #e8e0d0', fontSize: '.9rem', background: '#fafaf8', outline: 'none', boxSizing: 'border-box', color: '#1a3a2a', transition: 'border .2s' };
+  const labelStyle = { display: 'block', fontSize: '.68rem', fontWeight: 800, color: '#8a7d6e', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 6 };
 
   return (
-    <div style={S.wrap}>
-      <div style={S.head}>
-        <Link to="/" style={{color:'#fcd116', textDecoration:'none', fontWeight:700, fontSize:'1.2rem'}}>🚌 busGO</Link>
-        <span style={{color:'rgba(255,255,255,.4)'}}>›</span>
-        <span style={{fontSize:'.85rem', opacity:.8}}>Réservation</span>
-      </div>
+    <div style={{ minHeight: '100vh', background: '#f0ece4', fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif' }}>
+      <Navbar />
 
-      {/* Progress */}
-      <div style={{background:'#fff', borderBottom:'1px solid #e8e0d0', padding:'12px 24px', display:'flex', gap:0, overflowX:'auto'}}>
-        {STEP_LABELS.map((l,i) => (
-          <div key={i} style={{display:'flex', alignItems:'center', flex:i<3?1:'auto'}}>
-            <div style={{display:'flex', alignItems:'center', gap:8, padding:'4px 12px', borderRadius:20, background: i===step ? '#007a5e' : i<step ? '#e0f4ee' : 'transparent', color: i===step ? '#fff' : i<step ? '#007a5e' : '#8a7d6e', fontWeight:600, fontSize:'.82rem', whiteSpace:'nowrap'}}>
-              <span style={{width:20, height:20, borderRadius:'50%', background: i<=step ? (i===step?'#fff':'#007a5e') : '#ddd', color: i===step?'#007a5e':'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'.7rem', fontWeight:700}}>
-                {i < step ? '✓' : i+1}
-              </span>
-              {l}
-            </div>
-            {i < 3 && <div style={{flex:1, height:2, background: i<step?'#007a5e':'#e8e0d0', margin:'0 4px'}}/>}
+      {/* Progress header */}
+      <div style={{ background: 'linear-gradient(135deg,#1a3a2a,#2d5c3f)', paddingTop: 64 }}>
+        <div style={{ maxWidth: 700, margin: '0 auto', padding: '28px clamp(16px,4vw,32px) 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+            {STEPS.map((s, i) => {
+              const num = i + 1;
+              const done = num < step;
+              const active = num === step;
+              return (
+                <React.Fragment key={s}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '.8rem', background: done ? '#007a5e' : active ? '#fcd116' : 'rgba(255,255,255,.15)', color: done ? '#fff' : active ? '#1a3a2a' : 'rgba(255,255,255,.5)', transition: 'all .3s' }}>
+                      {done ? '✓' : num}
+                    </div>
+                    <span style={{ fontSize: '.65rem', fontWeight: 700, color: active ? '#fcd116' : done ? 'rgba(255,255,255,.8)' : 'rgba(255,255,255,.35)', letterSpacing: '.05em' }}>
+                      {s.toUpperCase()}
+                    </span>
+                  </div>
+                  {i < STEPS.length - 1 && (
+                    <div style={{ flex: 1, height: 2, background: done ? '#007a5e' : 'rgba(255,255,255,.15)', marginBottom: 18, borderRadius: 1, transition: 'background .3s' }} />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
-        ))}
+        </div>
       </div>
 
-      <div style={S.inner}>
-        {/* Trip summary */}
-        {trip && (
-          <div style={{...S.card, background:'#1a3a2a', color:'#fff', marginBottom:20}}>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8}}>
-              <div>
-                <div style={{fontWeight:700, fontSize:'1.1rem'}}>{trip.agency?.name}</div>
-                <div style={{opacity:.7, fontSize:'.8rem'}}>{trip.from?.city} → {trip.to?.city}</div>
-                <div style={{opacity:.7, fontSize:'.8rem'}}>{fmtDate(trip.departureTime)}</div>
-              </div>
-              <div style={{textAlign:'right'}}>
-                <div style={{fontSize:'1.4rem', fontWeight:700, color:'#fcd116'}}>{fmt(trip.departureTime)}</div>
-                <div style={{opacity:.7, fontSize:'.8rem'}}>{trip.price?.toLocaleString('fr-FR')} FCFA/pers</div>
-              </div>
-            </div>
+      <div style={{ maxWidth: 700, margin: '0 auto', padding: '28px clamp(16px,4vw,32px)' }}>
+        {/* Loading */}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '60px 0' }}>
+            <div style={{ width: 48, height: 48, border: '4px solid #e8e0d0', borderTopColor: '#007a5e', borderRadius: '50%', animation: 'spin .8s linear infinite', margin: '0 auto 16px' }} />
+            <p style={{ color: '#8a7d6e' }}>Chargement du voyage…</p>
           </div>
         )}
 
-        {err && <div style={{background:'#fef2f2', border:'1px solid #fca5a5', color:'#ce1126', padding:'10px 16px', borderRadius:10, marginBottom:16, fontSize:'.88rem'}}>{err}</div>}
+        {err && step !== 4 && (
+          <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', color: '#b91c1c', padding: '14px 18px', borderRadius: 12, marginBottom: 20 }}>⚠️ {err}</div>
+        )}
 
-        {/* STEP 0: Seats */}
-        {step === 0 && (
-          <div style={S.card}>
-            <h3 style={{fontFamily:'Georgia,serif', color:'#1a3a2a', marginBottom:4}}>Choisissez {pax === 1 ? 'votre siège' : `vos ${pax} sièges`}</h3>
-            <p style={{color:'#8a7d6e', fontSize:'.83rem', marginBottom:20}}>{sel.length}/{pax} sélectionné(s)</p>
-            {/* Legend */}
-            <div style={{display:'flex', gap:16, marginBottom:16, fontSize:'.75rem', color:'#8a7d6e'}}>
-              <span style={{display:'flex', alignItems:'center', gap:4}}><span style={{width:14, height:14, borderRadius:3, background:'#007a5e', display:'inline-block'}}/> Sélectionné</span>
-              <span style={{display:'flex', alignItems:'center', gap:4}}><span style={{width:14, height:14, borderRadius:3, border:'2px solid #007a5e', display:'inline-block'}}/> Libre</span>
-              <span style={{display:'flex', alignItems:'center', gap:4}}><span style={{width:14, height:14, borderRadius:3, background:'#ddd', display:'inline-block'}}/> Occupé</span>
-            </div>
-            {/* Driver */}
-            <div style={{textAlign:'center', marginBottom:12}}>
-              <div style={{display:'inline-block', background:'#1a3a2a', color:'#fcd116', padding:'6px 20px', borderRadius:8, fontSize:'.75rem', fontWeight:700}}>🚗 CONDUCTEUR</div>
-            </div>
-            {/* Grid */}
-            <div style={{display:'flex', flexDirection:'column', gap:8, alignItems:'center'}}>
-              {Array.from({length:Math.ceil(70/4)}, (_,row) => (
-                <div key={row} style={{display:'flex', gap:6, alignItems:'center'}}>
-                  {[0,1].map(col => {
-                    const num = row*4+col+1;
-                    if (num > 70) return null;
-                    const s = seats.find(s => s.seatNumber === num);
-                    const taken = s?.status === 'TAKEN';
-                    const selected = sel.includes(num);
-                    return (
-                      <div key={num} onClick={() => toggleSeat(num)}
-                        style={selected ? S.seatSel : taken ? S.seatTaken : S.seatFree}>
-                        {num}
-                      </div>
-                    );
-                  })}
-                  <div style={{width:24, background:'transparent'}}/>
-                  {[2,3].map(col => {
-                    const num = row*4+col+1;
-                    if (num > 70) return null;
-                    const s = seats.find(s => s.seatNumber === num);
-                    const taken = s?.status === 'TAKEN';
-                    const selected = sel.includes(num);
-                    return (
-                      <div key={num} onClick={() => toggleSeat(num)}
-                        style={selected ? S.seatSel : taken ? S.seatTaken : S.seatFree}>
-                        {num}
-                      </div>
-                    );
-                  })}
+        {/* ── STEP 1: Trip summary ── */}
+        {!loading && step === 1 && trip && (
+          <div>
+            <h2 style={{ fontFamily: 'Georgia,serif', fontSize: '1.5rem', color: '#1a3a2a', marginBottom: 20 }}>Votre voyage</h2>
+            <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #e8e0d0', overflow: 'hidden', marginBottom: 20, boxShadow: '0 2px 14px rgba(0,0,0,.05)' }}>
+              {/* Agency bar */}
+              <div style={{ padding: '14px 20px', background: '#f8f4ee', borderBottom: '1px solid #e8e0d0', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg,#007a5e,#00a87d)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>🚌</div>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#1a3a2a' }}>{trip.agency?.name || 'Agence'}</div>
+                  <div style={{ fontSize: '.75rem', color: '#8a7d6e' }}>{trip.busType || 'Confort'}</div>
                 </div>
-              ))}
+              </div>
+
+              {/* Route */}
+              <div style={{ padding: '28px 20px', display: 'flex', alignItems: 'center', gap: 20 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#1a3a2a' }}>{fmt(trip.departureTime)}</div>
+                  <div style={{ fontWeight: 700, color: '#007a5e' }}>{CITY[trip.from?.code] || trip.from?.city || '—'}</div>
+                  <div style={{ fontSize: '.75rem', color: '#8a7d6e' }}>{fmtDate(trip.departureTime)}</div>
+                </div>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ fontSize: '.78rem', color: '#8a7d6e', marginBottom: 6 }}>{duration(trip.durationMinutes)}</div>
+                  <div style={{ height: 3, background: 'linear-gradient(to right,#007a5e,#fcd116)', borderRadius: 3 }} />
+                  <div style={{ fontSize: '.72rem', color: '#8a7d6e', marginTop: 6 }}>Direct</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '2.2rem', fontWeight: 800, color: '#1a3a2a' }}>{fmt(trip.arrivalTime)}</div>
+                  <div style={{ fontWeight: 700, color: '#007a5e' }}>{CITY[trip.to?.code] || trip.to?.city || '—'}</div>
+                  <div style={{ fontSize: '.75rem', color: '#8a7d6e' }}>{fmtDate(trip.arrivalTime)}</div>
+                </div>
+              </div>
+
+              {/* Summary row */}
+              <div style={{ padding: '16px 20px', background: '#f0fdf4', borderTop: '1px solid #d1fae5', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ fontSize: '.85rem', color: '#065f46' }}>
+                  <strong>{pax} passager{pax > 1 ? 's' : ''}</strong> · {trip.price?.toLocaleString('fr-FR')} FCFA / pers.
+                </div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#007a5e' }}>
+                  {(trip.price * pax)?.toLocaleString('fr-FR')} FCFA
+                </div>
+              </div>
             </div>
-            <button onClick={() => setStep(1)} disabled={sel.length < pax} style={{...S.btn, opacity: sel.length < pax ? .5 : 1, cursor: sel.length < pax ? 'not-allowed' : 'pointer'}}>
-              Continuer → Informations passager
+
+            <button onClick={() => setStep(2)}
+              style={{ width: '100%', padding: '15px', background: 'linear-gradient(135deg,#007a5e,#00a87d)', color: '#fff', border: 'none', borderRadius: 14, fontWeight: 800, cursor: 'pointer', fontSize: '1rem', boxShadow: '0 4px 16px rgba(0,122,94,.35)' }}>
+              Continuer → Informations passagers
             </button>
           </div>
         )}
 
-        {/* STEP 1: Passenger */}
-        {step === 1 && (
-          <div style={S.card}>
-            <h3 style={{fontFamily:'Georgia,serif', color:'#1a3a2a', marginBottom:20}}>Informations passager</h3>
-            {['name','phone','email','nationalId'].map(field => (
-              <div key={field} style={{marginBottom:14}}>
-                <label style={S.label}>{field === 'name' ? 'Nom complet' : field === 'phone' ? 'Téléphone (MTN/Orange)' : field === 'email' ? 'Email (optionnel)' : 'CNI / Passeport'}</label>
-                <input
-                  type={field === 'email' ? 'email' : 'text'}
-                  placeholder={field === 'phone' ? '6XXXXXXXX' : ''}
-                  value={form[field]}
-                  onChange={e => setForm(f => ({...f, [field]: e.target.value}))}
-                  style={S.input}
-                />
-              </div>
-            ))}
-            <div style={{display:'flex', gap:10}}>
-              <button onClick={() => setStep(0)} style={{...S.btn, background:'#e8e0d0', color:'#4a4035', marginTop:0, flex:1}}>← Retour</button>
-              <button onClick={() => { if(form.name && form.phone) setStep(2); else setErr('Nom et téléphone requis.'); }} style={{...S.btn, marginTop:0, flex:2}}>Continuer → Paiement</button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2: Payment */}
-        {step === 2 && (
-          <div style={S.card}>
-            <h3 style={{fontFamily:'Georgia,serif', color:'#1a3a2a', marginBottom:20}}>Mode de paiement</h3>
-            {[
-              { id:'MTN_MOMO', label:'MTN Mobile Money', icon:'🟡', desc:'Paiement via MTN MoMo' },
-              { id:'ORANGE_MONEY', label:'Orange Money', icon:'🟠', desc:'Paiement via Orange Money' },
-              { id:'CARD', label:'Carte bancaire', icon:'💳', desc:'Visa / Mastercard' }
-            ].map(m => (
-              <div key={m.id} onClick={() => setPayMethod(m.id)}
-                style={{padding:'14px 18px', borderRadius:12, border: payMethod===m.id ? '2px solid #007a5e' : '1.5px solid #e8e0d0', marginBottom:10, cursor:'pointer', display:'flex', alignItems:'center', gap:14, background: payMethod===m.id ? '#f0faf7' : '#fff'}}>
-                <span style={{fontSize:'1.4rem'}}>{m.icon}</span>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700, color:'#1a3a2a', fontSize:'.9rem'}}>{m.label}</div>
-                  <div style={{color:'#8a7d6e', fontSize:'.78rem'}}>{m.desc}</div>
+        {/* ── STEP 2: Passenger info ── */}
+        {!loading && step === 2 && (
+          <div>
+            <h2 style={{ fontFamily: 'Georgia,serif', fontSize: '1.5rem', color: '#1a3a2a', marginBottom: 20 }}>
+              Informations passagers
+            </h2>
+            {passengers.map((p, i) => (
+              <div key={i} style={{ background: '#fff', borderRadius: 18, border: '1.5px solid #e8e0d0', padding: '20px', marginBottom: 16, boxShadow: '0 2px 10px rgba(0,0,0,.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#007a5e,#00a87d)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '.85rem' }}>{i + 1}</div>
+                  <div style={{ fontWeight: 700, color: '#1a3a2a' }}>Passager {i + 1}</div>
                 </div>
-                <div style={{width:20, height:20, borderRadius:'50%', border: payMethod===m.id ? '6px solid #007a5e' : '2px solid #ccc', transition:'border .2s'}}/>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ gridColumn: '1/-1' }}>
+                    <label style={labelStyle}>Nom complet *</label>
+                    <input required type="text" placeholder="Jean Dupont" value={p.name}
+                      onChange={e => updatePassenger(i, 'name', e.target.value)} style={inputStyle}
+                      onFocus={e => e.target.style.borderColor = '#007a5e'}
+                      onBlur={e => e.target.style.borderColor = '#e8e0d0'} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Téléphone</label>
+                    <input type="tel" placeholder="+237 6XX" value={p.phone}
+                      onChange={e => updatePassenger(i, 'phone', e.target.value)} style={inputStyle}
+                      onFocus={e => e.target.style.borderColor = '#007a5e'}
+                      onBlur={e => e.target.style.borderColor = '#e8e0d0'} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>CNI / Passeport</label>
+                    <input type="text" placeholder="Ex: 1234567890" value={p.idNumber}
+                      onChange={e => updatePassenger(i, 'idNumber', e.target.value)} style={inputStyle}
+                      onFocus={e => e.target.style.borderColor = '#007a5e'}
+                      onBlur={e => e.target.style.borderColor = '#e8e0d0'} />
+                  </div>
+                </div>
               </div>
             ))}
-            <div style={{background:'#f8f4ee', borderRadius:12, padding:16, margin:'16px 0'}}>
-              <div style={{display:'flex', justifyContent:'space-between', fontSize:'.88rem', color:'#4a4035', marginBottom:6}}>
-                <span>Siège(s) {sel.join(', ')}</span>
-                <span>{pax} × {trip?.price?.toLocaleString('fr-FR')} FCFA</span>
-              </div>
-              <div style={{borderTop:'1px solid #e8e0d0', paddingTop:10, display:'flex', justifyContent:'space-between', fontWeight:700, color:'#1a3a2a'}}>
-                <span>Total</span>
-                <span style={{color:'#007a5e', fontSize:'1.1rem'}}>{((trip?.price||0)*pax).toLocaleString('fr-FR')} FCFA</span>
-              </div>
-            </div>
-            <div style={{display:'flex', gap:10}}>
-              <button onClick={() => setStep(1)} style={{...S.btn, background:'#e8e0d0', color:'#4a4035', marginTop:0, flex:1}}>← Retour</button>
-              <button onClick={confirmBooking} disabled={submitting} style={{...S.btn, marginTop:0, flex:2, opacity: submitting?.5:1}}>
-                {submitting ? 'Réservation…' : `✓ Confirmer — ${((trip?.price||0)*pax).toLocaleString('fr-FR')} FCFA`}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setStep(1)} style={{ flex: 1, padding: '14px', background: '#f0ece4', color: '#6b5d4f', border: 'none', borderRadius: 14, fontWeight: 700, cursor: 'pointer' }}>← Retour</button>
+              <button onClick={() => { if (step2Valid) setStep(3); }} disabled={!step2Valid}
+                style={{ flex: 2, padding: '14px', background: step2Valid ? 'linear-gradient(135deg,#007a5e,#00a87d)' : '#d1d5db', color: '#fff', border: 'none', borderRadius: 14, fontWeight: 800, cursor: step2Valid ? 'pointer' : 'not-allowed', fontSize: '1rem', boxShadow: step2Valid ? '0 4px 16px rgba(0,122,94,.35)' : 'none' }}>
+                Continuer → Paiement
               </button>
             </div>
           </div>
         )}
 
-        {/* STEP 3: Success */}
-        {step === 3 && booking && (
-          <div style={{...S.card, textAlign:'center'}}>
-            <div style={{fontSize:'3rem', marginBottom:12}}>🎉</div>
-            <h2 style={{fontFamily:'Georgia,serif', color:'#007a5e', marginBottom:8}}>Réservation confirmée !</h2>
-            <p style={{color:'#8a7d6e', marginBottom:24}}>Un SMS de confirmation a été envoyé au {form.phone}</p>
-            <div style={{background:'#1a3a2a', color:'#fff', borderRadius:14, padding:20, marginBottom:20, display:'inline-block', minWidth:240}}>
-              <div style={{fontSize:'.75rem', opacity:.6, letterSpacing:'.1em', textTransform:'uppercase', marginBottom:6}}>Référence</div>
-              <div style={{fontFamily:'monospace', fontSize:'1.4rem', fontWeight:700, letterSpacing:'.08em', color:'#fcd116'}}>{booking.reference}</div>
-              <div style={{marginTop:12, fontSize:'.75rem', opacity:.6}}>Code validation</div>
-              <div style={{fontFamily:'monospace', fontSize:'1.2rem', color:'#fcd116', letterSpacing:'.1em'}}>{booking.validationCode}</div>
+        {/* ── STEP 3: Payment ── */}
+        {!loading && step === 3 && (
+          <div>
+            <h2 style={{ fontFamily: 'Georgia,serif', fontSize: '1.5rem', color: '#1a3a2a', marginBottom: 20 }}>Paiement</h2>
+
+            {/* Payment method */}
+            <div style={{ background: '#fff', borderRadius: 18, border: '1.5px solid #e8e0d0', padding: '20px', marginBottom: 16 }}>
+              <label style={{ ...labelStyle, marginBottom: 14 }}>Mode de paiement</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+                {[
+                  { id: 'momo', name: 'MTN MoMo', emoji: '🟡', desc: 'Mobile Money MTN' },
+                  { id: 'om', name: 'Orange Money', emoji: '🟠', desc: 'Orange Money CM' },
+                  { id: 'card', name: 'Carte bancaire', emoji: '💳', desc: 'Visa / Mastercard' },
+                  { id: 'cash', name: 'Espèces en agence', emoji: '💵', desc: 'Paiement sur place' },
+                ].map(m => (
+                  <div key={m.id} onClick={() => setPayMethod(m.id)}
+                    style={{ padding: '14px 16px', borderRadius: 12, border: `2px solid ${payMethod === m.id ? '#007a5e' : '#e8e0d0'}`, background: payMethod === m.id ? '#f0fdf4' : '#fafaf8', cursor: 'pointer', transition: 'all .2s' }}>
+                    <div style={{ fontSize: '1.4rem', marginBottom: 6 }}>{m.emoji}</div>
+                    <div style={{ fontWeight: 700, color: '#1a3a2a', fontSize: '.88rem' }}>{m.name}</div>
+                    <div style={{ fontSize: '.72rem', color: '#8a7d6e' }}>{m.desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              {(payMethod === 'momo' || payMethod === 'om') && (
+                <div>
+                  <label style={labelStyle}>Numéro {payMethod === 'momo' ? 'MTN MoMo' : 'Orange Money'} *</label>
+                  <input type="tel" placeholder="+237 6XX XXX XXX" value={payPhone}
+                    onChange={e => setPayPhone(e.target.value)} style={inputStyle}
+                    onFocus={e => e.target.style.borderColor = '#007a5e'}
+                    onBlur={e => e.target.style.borderColor = '#e8e0d0'} />
+                  <p style={{ fontSize: '.75rem', color: '#8a7d6e', marginTop: 6 }}>Vous recevrez une demande de confirmation sur ce numéro.</p>
+                </div>
+              )}
+              {payMethod === 'cash' && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fcd116', borderRadius: 10, padding: '12px 14px', fontSize: '.82rem', color: '#92400e' }}>
+                  ℹ️ Présentez-vous à l'agence <strong>{trip?.agency?.name}</strong> au moins 30 min avant le départ pour régler votre billet.
+                </div>
+              )}
+              {payMethod === 'card' && (
+                <input type="tel" placeholder="Numéro de téléphone pour le reçu" value={payPhone}
+                  onChange={e => setPayPhone(e.target.value)} style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = '#007a5e'}
+                  onBlur={e => e.target.style.borderColor = '#e8e0d0'} />
+              )}
             </div>
-            <div style={{display:'flex', flexDirection:'column', gap:10}}>
-              <Link to="/mes-voyages" style={{padding:'12px 24px', background:'#007a5e', color:'#fff', borderRadius:12, textDecoration:'none', fontWeight:700}}>Voir mes voyages</Link>
-              <Link to="/" style={{padding:'10px', color:'#007a5e', textDecoration:'none', fontSize:'.88rem'}}>← Retour à l'accueil</Link>
+
+            {/* Order summary */}
+            <div style={{ background: '#fff', borderRadius: 18, border: '1.5px solid #e8e0d0', padding: '20px', marginBottom: 20 }}>
+              <div style={{ fontWeight: 700, color: '#1a3a2a', marginBottom: 14 }}>Récapitulatif</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, color: '#6b5d4f', fontSize: '.88rem' }}>
+                <span>{pax} × billet {CITY[trip?.from?.code]} → {CITY[trip?.to?.code]}</span>
+                <span>{((trip?.price || 0) * pax).toLocaleString('fr-FR')} FCFA</span>
+              </div>
+              <div style={{ height: 1, background: '#e8e0d0', margin: '12px 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, color: '#007a5e', fontSize: '1.1rem' }}>
+                <span>Total à payer</span>
+                <span>{((trip?.price || 0) * pax).toLocaleString('fr-FR')} FCFA</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setStep(2)} style={{ flex: 1, padding: '14px', background: '#f0ece4', color: '#6b5d4f', border: 'none', borderRadius: 14, fontWeight: 700, cursor: 'pointer' }}>← Retour</button>
+              <button onClick={confirm} disabled={submitting || (!step3Valid && (payMethod === 'momo' || payMethod === 'om'))}
+                style={{ flex: 2, padding: '14px', background: submitting ? '#9ca3af' : 'linear-gradient(135deg,#007a5e,#00a87d)', color: '#fff', border: 'none', borderRadius: 14, fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', fontSize: '1rem', boxShadow: submitting ? 'none' : '0 4px 16px rgba(0,122,94,.35)' }}>
+                {submitting ? '⏳ Réservation en cours…' : '🎫 Confirmer la réservation'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 4: Confirmation ── */}
+        {step === 4 && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'linear-gradient(135deg,#007a5e,#00a87d)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', margin: '0 auto 24px', boxShadow: '0 8px 32px rgba(0,122,94,.3)' }}>
+              ✅
+            </div>
+            <h2 style={{ fontFamily: 'Georgia,serif', fontSize: '1.8rem', color: '#1a3a2a', marginBottom: 8 }}>Voyage réservé !</h2>
+            <p style={{ color: '#6b5d4f', marginBottom: 28 }}>Votre réservation a été confirmée avec succès.</p>
+
+            {booking && (
+              <div style={{ background: '#fff', borderRadius: 20, border: '1.5px solid #e8e0d0', padding: '24px', marginBottom: 24, boxShadow: '0 2px 14px rgba(0,0,0,.05)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  {[
+                    { label: 'Référence', value: booking.reference || booking.id?.slice(0, 8).toUpperCase() },
+                    { label: 'Code validation', value: booking.validationCode || '—', highlight: true },
+                  ].map(d => (
+                    <div key={d.label} style={{ background: d.highlight ? '#f0fdf4' : '#f8f4ee', borderRadius: 12, padding: '14px 16px', border: d.highlight ? '1px solid #86efac' : 'none' }}>
+                      <div style={{ fontSize: '.68rem', fontWeight: 800, color: '#8a7d6e', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 6 }}>{d.label}</div>
+                      <div style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 800, color: d.highlight ? '#166534' : '#1a3a2a', letterSpacing: '.06em' }}>{d.value}</div>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: '.8rem', color: '#8a7d6e', marginTop: 14 }}>
+                  Présentez ce code à l'agence le jour du départ.
+                </p>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Link to="/mes-voyages" style={{ padding: '12px 24px', background: '#007a5e', color: '#fff', borderRadius: 12, textDecoration: 'none', fontWeight: 700, boxShadow: '0 4px 16px rgba(0,122,94,.25)' }}>
+                🎫 Mes réservations
+              </Link>
+              <Link to="/" style={{ padding: '12px 24px', background: '#f0ece4', color: '#6b5d4f', borderRadius: 12, textDecoration: 'none', fontWeight: 700 }}>
+                🔍 Nouveau voyage
+              </Link>
             </div>
           </div>
         )}
       </div>
+
+      <style>{`@keyframes spin { to { transform:rotate(360deg) } } * { box-sizing:border-box }`}</style>
     </div>
   );
 }
