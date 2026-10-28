@@ -1,0 +1,10 @@
+node_modules/
+.env
+dist/
+build/
+.DS_Store
+*.log
+prisma/migrations/
+uploads/
+*.lock
+/tmp/busgo-agent-*.lock

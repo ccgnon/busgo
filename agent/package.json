@@ -1,0 +1,19 @@
+{
+  "name": "busgo-agent",
+  "version": "1.0.0",
+  "description": "Agent IA Baobab — busGO (Telegraf + Groq LLaMA)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev":   "nodemon src/index.js"
+  },
+  "dependencies": {
+    "telegraf":  "^4.16.3",
+    "groq-sdk":  "^0.7.0",
+    "axios":     "^1.7.2",
+    "dotenv":    "^16.4.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}

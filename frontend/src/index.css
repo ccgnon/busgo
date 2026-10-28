@@ -1,0 +1,51 @@
+/* busGO — Global CSS */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;1,700&display=swap');
+
+:root {
+  --forest:    #1a3a2a;
+  --earth:     #c4692a;
+  --savanna:   #fcd116;
+  --green-cmr: #007a5e;
+  --red-cmr:   #ce1126;
+
+  --bg:       #f5f0e8;
+  --surface:  #ffffff;
+  --fg:       #1a1a1a;
+  --fg2:      #4a4035;
+  --fg3:      #8a7d6e;
+  --border:   #d4c9b5;
+  --accent:   #c4692a;
+
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-ui:      'Plus Jakarta Sans', system-ui, sans-serif;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:      #0e1a12;
+    --surface: #1e2e1e;
+    --fg:      #f0ece0;
+    --fg2:     #c0b8a0;
+    --fg3:     #80786a;
+    --border:  #2e3e28;
+    color-scheme: dark;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.6;
+}
+img { max-width: 100%; }
+a { color: inherit; }
+button { font-family: var(--font-ui); }
+input, select, textarea {
+  font-family: var(--font-ui);
+  color: var(--fg);
+}
