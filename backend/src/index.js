@@ -1,9 +1,28 @@
 require('dotenv').config();
+const { execSync } = require('child_process');
+const path = require('path');
 const express  = require('express');
 const cors     = require('cors');
 const helmet   = require('helmet');
 const morgan   = require('morgan');
 const rateLimit = require('express-rate-limit');
+
+// ── Migration automatique au démarrage ────────────────────────────────────
+// Remplace le buildCommand "prisma db push" (non applicable sur service manuel)
+(function autoMigrate() {
+  try {
+    console.log('🔄 Vérification / migration du schéma Prisma…');
+    execSync('npx prisma generate && npx prisma db push --accept-data-loss', {
+      cwd: path.join(__dirname, '..'),
+      stdio: 'inherit',
+      env: { ...process.env },
+    });
+    console.log('✅ Schéma Prisma à jour.');
+  } catch (e) {
+    console.error('❌ Migration Prisma échouée :', e.message);
+    // On continue quand même — si la DB était déjà à jour ça ne bloque pas
+  }
+})();
 
 const app = express();
 
