@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import Navbar from '../components/Navbar';
 
 const CITY = { YDE:'Yaoundé', DLA:'Douala', BFT:'Bafoussam', NGD:'Ngaoundéré', LIM:'Limbé', BUE:'Buéa', EDO:'Ébolowa', BSG:'Bertoua' };
@@ -30,7 +30,7 @@ export default function BookingFlow() {
 
   useEffect(() => {
     if (!token) { navigate('/connexion'); return; }
-    axios.get(`/api/trips/${tripId}`, { headers: { Authorization: `Bearer ${token}` } })
+    api.get(`/api/trips/${tripId}`)
       .then(r => setTrip(r.data.trip || r.data))
       .catch(() => setErr('Impossible de charger ce voyage.'))
       .finally(() => setLoading(false));
@@ -47,13 +47,13 @@ export default function BookingFlow() {
   const confirm = async () => {
     setSubmitting(true); setErr('');
     try {
-      const res = await axios.post('/api/bookings', {
+      const res = await api.post('/api/bookings', {
         tripId,
         passengers,
         seats: pax,
         paymentMethod: payMethod,
         paymentPhone: payPhone,
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      });
       setBooking(res.data.booking || res.data);
       setStep(4);
     } catch (e) {

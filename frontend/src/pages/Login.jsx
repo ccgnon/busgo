@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import Navbar from '../components/Navbar';
 
 export default function Login() {
@@ -14,7 +14,7 @@ export default function Login() {
     e.preventDefault();
     setErr(''); setLoading(true);
     try {
-      const res = await axios.post('/api/auth/login', form);
+      const res = await api.post('/api/auth/login', form);
       localStorage.setItem('busgo_token', res.data.token);
       if (res.data.user?.role === 'ADMIN') navigate('/admin');
       else navigate('/mes-voyages');

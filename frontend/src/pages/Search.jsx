@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import Navbar from '../components/Navbar';
 
 const CITY = { YDE:'Yaoundé', DLA:'Douala', BFT:'Bafoussam', NGD:'Ngaoundéré', LIM:'Limbé', BUE:'Buéa', EDO:'Ébolowa', BSG:'Bertoua' };
@@ -22,7 +22,7 @@ export default function Search() {
   useEffect(() => {
     if (!from || !to) { setLoading(false); return; }
     setLoading(true); setErr('');
-    axios.get('/api/trips/search', { params: { from, to, date, pax } })
+    api.get('/api/trips/search', { params: { from, to, date, pax } })
       .then(r => setTrips(r.data.trips || r.data || []))
       .catch(() => setErr('Erreur lors de la recherche. Vérifiez votre connexion.'))
       .finally(() => setLoading(false));

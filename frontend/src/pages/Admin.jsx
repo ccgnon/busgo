@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import Navbar from '../components/Navbar';
 
 const TABS = [
@@ -26,12 +26,11 @@ export default function Admin() {
 
   useEffect(() => {
     if (!token) { navigate('/connexion'); return; }
-    const h = { Authorization: `Bearer ${token}` };
     Promise.all([
-      axios.get('/api/admin/stats', { headers: h }).catch(() => ({ data: {} })),
-      axios.get('/api/admin/trips', { headers: h }).catch(() => ({ data: [] })),
-      axios.get('/api/admin/bookings', { headers: h }).catch(() => ({ data: [] })),
-      axios.get('/api/admin/users', { headers: h }).catch(() => ({ data: [] })),
+      api.get('/api/admin/stats').catch(() => ({ data: {} })),
+      api.get('/api/admin/trips').catch(() => ({ data: [] })),
+      api.get('/api/admin/bookings').catch(() => ({ data: [] })),
+      api.get('/api/admin/users').catch(() => ({ data: [] })),
     ]).then(([s, t, b, u]) => {
       setStats(s.data.stats || s.data || {});
       setTrips(t.data.trips || t.data || []);

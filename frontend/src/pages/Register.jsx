@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import Navbar from '../components/Navbar';
 
 export default function Register() {
@@ -17,7 +17,7 @@ export default function Register() {
     e.preventDefault();
     setErr(''); setLoading(true);
     try {
-      const res = await axios.post('/api/auth/register', form);
+      const res = await api.post('/api/auth/register', form);
       localStorage.setItem('busgo_token', res.data.token);
       navigate('/mes-voyages');
     } catch (e) {

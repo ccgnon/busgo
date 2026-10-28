@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api';
 import Navbar from '../components/Navbar';
 
 const STATUS_CONFIG = {
@@ -24,7 +24,7 @@ export default function MyBookings() {
 
   useEffect(() => {
     if (!token) { navigate('/connexion'); return; }
-    axios.get('/api/bookings/my', { headers: { Authorization: `Bearer ${token}` } })
+    api.get('/api/bookings/my')
       .then(r => setBookings(r.data.bookings || r.data || []))
       .catch(() => setErr('Impossible de charger vos réservations.'))
       .finally(() => setLoading(false));
@@ -34,7 +34,7 @@ export default function MyBookings() {
     if (!window.confirm('Annuler cette réservation ?')) return;
     setCancelling(id);
     try {
-      await axios.post(`/api/bookings/${id}/cancel`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      await api.post(`/api/bookings/${id}/cancel`, {});
       setBookings(b => b.map(bk => bk.id === id ? { ...bk, status: 'CANCELLED' } : bk));
     } catch { alert('Erreur lors de l\'annulation.'); }
     finally { setCancelling(null); }

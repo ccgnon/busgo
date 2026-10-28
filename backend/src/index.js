@@ -10,11 +10,18 @@ const app = express();
 // ── Sécurité ──────────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    process.env.FRONTEND_URL,
-  ].filter(Boolean),
+  origin: (origin, cb) => {
+    const allowed = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://busgo-4q84.onrender.com',
+      process.env.FRONTEND_URL,
+      process.env.CORS_ORIGIN,
+    ].filter(Boolean);
+    // Pas d'origin = requête server-to-server ou curl, on autorise
+    if (!origin || allowed.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS bloqué : ${origin}`));
+  },
   credentials: true,
 }));
 
