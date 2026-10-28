@@ -68,12 +68,35 @@ app.use((err, req, res, next) => {
   });
 });
 
+// ── Seed automatique si DB vide ───────────────────────────────────────────
+async function autoSeed() {
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    const count = await prisma.agency.count();
+    if (count === 0) {
+      console.log('🌱 DB vide détectée — lancement du seed initial…');
+      require('child_process').execSync('node prisma/seed.js', {
+        cwd: __dirname + '/../',
+        stdio: 'inherit',
+      });
+      console.log('✅ Seed terminé.');
+    } else {
+      console.log(`✅ DB opérationnelle (${count} agence(s) déjà présente(s)).`);
+    }
+    await prisma.$disconnect();
+  } catch (e) {
+    console.warn('⚠️  Auto-seed ignoré :', e.message);
+  }
+}
+
 // ── Démarrage ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n🚌 busGO API démarrée`);
   console.log(`📡 Port       : ${PORT}`);
   console.log(`🌍 Env        : ${process.env.NODE_ENV}`);
   console.log(`🔗 Health     : http://localhost:${PORT}/health`);
   console.log(`📚 API        : http://localhost:${PORT}/api\n`);
+  await autoSeed();
 });
