@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api';
 import Navbar from '../components/Navbar';
 
-const CITY = { YDE:'Yaoundé', DLA:'Douala', BFT:'Bafoussam', NGD:'Ngaoundéré', LIM:'Limbé', BUE:'Buéa', EDO:'Ébolowa', BSG:'Bertoua' };
+const CITY = { YDE:'Yaoundé', DLA:'Douala', BFT:'Bafoussam', NGD:'Ngaoundéré', LIM:'Limbé', BUE:'Buéa', EDO:'Ébolowa', BSG:'Bertoua', GAR:'Garoua', MRU:'Maroua', BAM:'Bamenda', KMB:'Kumba' };
 const STATIONS = Object.entries(CITY).map(([id, city]) => ({ id, label: city }));
 
 export default function Search() {

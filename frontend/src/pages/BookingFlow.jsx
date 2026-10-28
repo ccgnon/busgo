@@ -3,7 +3,7 @@ import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom'
 import api from '../api';
 import Navbar from '../components/Navbar';
 
-const CITY = { YDE:'Yaoundé', DLA:'Douala', BFT:'Bafoussam', NGD:'Ngaoundéré', LIM:'Limbé', BUE:'Buéa', EDO:'Ébolowa', BSG:'Bertoua' };
+const CITY = { YDE:'Yaoundé', DLA:'Douala', BFT:'Bafoussam', NGD:'Ngaoundéré', LIM:'Limbé', BUE:'Buéa', EDO:'Ébolowa', BSG:'Bertoua', GAR:'Garoua', MRU:'Maroua', BAM:'Bamenda', KMB:'Kumba' };
 
 const STEPS = ['Voyage', 'Passagers', 'Paiement', 'Confirmation'];
 
@@ -274,7 +274,7 @@ export default function BookingFlow() {
 
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setStep(2)} style={{ flex: 1, padding: '14px', background: '#f0ece4', color: '#6b5d4f', border: 'none', borderRadius: 14, fontWeight: 700, cursor: 'pointer' }}>← Retour</button>
-              <button onClick={confirm} disabled={submitting || (!step3Valid && (payMethod === 'momo' || payMethod === 'om'))}
+              <button onClick={confirm} disabled={submitting || (payMethod !== 'cash' && !step3Valid)}
                 style={{ flex: 2, padding: '14px', background: submitting ? '#9ca3af' : 'linear-gradient(135deg,#007a5e,#00a87d)', color: '#fff', border: 'none', borderRadius: 14, fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', fontSize: '1rem', boxShadow: submitting ? 'none' : '0 4px 16px rgba(0,122,94,.35)' }}>
                 {submitting ? '⏳ Réservation en cours…' : '🎫 Confirmer la réservation'}
               </button>

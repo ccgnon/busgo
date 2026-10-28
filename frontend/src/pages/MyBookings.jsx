@@ -10,7 +10,7 @@ const STATUS_CONFIG = {
   COMPLETED: { label: 'Terminé', bg: '#f3f4f6', color: '#374151', icon: '🏁' },
 };
 
-const CITY = { YDE:'Yaoundé', DLA:'Douala', BFT:'Bafoussam', NGD:'Ngaoundéré', LIM:'Limbé', BUE:'Buéa', EDO:'Ébolowa', BSG:'Bertoua' };
+const CITY = { YDE:'Yaoundé', DLA:'Douala', BFT:'Bafoussam', NGD:'Ngaoundéré', LIM:'Limbé', BUE:'Buéa', EDO:'Ébolowa', BSG:'Bertoua', GAR:'Garoua', MRU:'Maroua', BAM:'Bamenda', KMB:'Kumba' };
 
 export default function MyBookings() {
   const navigate = useNavigate();
