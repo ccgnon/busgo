@@ -133,6 +133,20 @@ router.post('/', authenticate, async (req, res) => {
       return bk;
     });
 
+    // Envoyer l'email de confirmation (async, ne bloque pas la réponse)
+    const fullBooking = { ...booking, qrData, validationCode: validCode };
+    const tripFull = await prisma.trip.findUnique({
+      where: { id: tripId },
+      include: { from: true, to: true, agency: true },
+    });
+    const userFull = req.user?.id ? await prisma.user.findUnique({ where: { id: req.user.id } }) : null;
+    if (userFull?.email) {
+      const { sendBookingConfirmation } = require('../services/mailer');
+      sendBookingConfirmation(fullBooking, tripFull, userFull)
+        .then(() => console.log(`📧 Confirmation envoyée à ${userFull.email}`))
+        .catch(e  => console.warn('📧 Email non envoyé:', e.message));
+    }
+
     res.status(201).json({
       booking: {
         ...booking,
@@ -255,6 +269,127 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
     res.json({ message: 'Réservation annulée avec succès' });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── PUT /api/bookings/:id — Modifier une réservation (ADMIN ou AGENCY) ─────
+router.put('/:id', authenticate, requireRole('ADMIN', 'AGENCY'), async (req, res) => {
+  const { passengerName, passengerPhone, pax, status, reason } = req.body;
+  try {
+    const booking = await prisma.booking.findUnique({
+      where:   { id: req.params.id },
+      include: { trip: { include: { from: true, to: true, agency: true } }, user: true },
+    });
+    if (!booking) return res.status(404).json({ error: 'Réservation introuvable' });
+
+    // AGENCY ne peut modifier que les réservations de son agence
+    if (req.user.role === 'AGENCY' && req.user.agencyId !== booking.trip.agencyId) {
+      return res.status(403).json({ error: 'Vous ne gérez pas cette agence' });
+    }
+
+    const data = {};
+    const changes = {};
+
+    if (passengerName && passengerName !== booking.passengerName) {
+      data.passengerName = passengerName;
+      changes['Passager'] = `${booking.passengerName} → ${passengerName}`;
+    }
+    if (passengerPhone && passengerPhone !== booking.passengerPhone) {
+      data.passengerPhone = passengerPhone;
+      changes['Téléphone'] = `${booking.passengerPhone} → ${passengerPhone}`;
+    }
+    if (pax && parseInt(pax) !== booking.pax) {
+      const diff = parseInt(pax) - booking.pax;
+      if (diff > 0 && booking.trip.availableSeats < diff) {
+        return res.status(409).json({ error: `Seulement ${booking.trip.availableSeats} place(s) disponible(s)` });
+      }
+      data.pax        = parseInt(pax);
+      data.totalPrice = booking.trip.price * parseInt(pax) + 500 * parseInt(pax);
+      data.serviceFee = 500 * parseInt(pax);
+      changes['Passagers'] = `${booking.pax} → ${pax}`;
+      changes['Montant']   = `${booking.totalPrice} → ${data.totalPrice} FCFA`;
+      // Mettre à jour les sièges disponibles
+      await prisma.trip.update({ where: { id: booking.tripId }, data: { availableSeats: { decrement: diff } } });
+    }
+    if (status && status !== booking.status) {
+      data.status = status;
+      changes['Statut'] = `${booking.status} → ${status}`;
+      if (status === 'CANCELLED') {
+        data.cancelledAt = new Date();
+        await prisma.$transaction([
+          prisma.seatSlot.updateMany({ where: { bookingId: booking.id }, data: { status: 'CANCELLED', bookingId: null } }),
+          prisma.trip.update({ where: { id: booking.tripId }, data: { availableSeats: { increment: booking.pax } } }),
+        ]);
+      }
+    }
+
+    const updated = await prisma.booking.update({ where: { id: req.params.id }, data });
+
+    // Envoyer e-mail de notification si des changements ont eu lieu
+    if (booking.user?.email && Object.keys(changes).length > 0) {
+      const { sendBookingUpdate, sendBookingCancellation } = require('../services/mailer');
+      if (status === 'CANCELLED') {
+        sendBookingCancellation(updated, booking.trip, booking.user, reason).catch(e => console.warn('Mail KO:', e.message));
+      } else {
+        sendBookingUpdate(updated, booking.trip, booking.user, changes).catch(e => console.warn('Mail KO:', e.message));
+      }
+    }
+
+    res.json({ booking: updated, message: 'Réservation mise à jour', changes });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── DELETE /api/bookings/:id — Supprimer une réservation (ADMIN ou AGENCY) ─
+router.delete('/:id', authenticate, requireRole('ADMIN', 'AGENCY'), async (req, res) => {
+  const { reason } = req.body;
+  try {
+    const booking = await prisma.booking.findUnique({
+      where:   { id: req.params.id },
+      include: { trip: { include: { from: true, to: true, agency: true } }, user: true },
+    });
+    if (!booking) return res.status(404).json({ error: 'Réservation introuvable' });
+
+    if (req.user.role === 'AGENCY' && req.user.agencyId !== booking.trip.agencyId) {
+      return res.status(403).json({ error: 'Vous ne gérez pas cette agence' });
+    }
+
+    await prisma.$transaction([
+      prisma.seatSlot.deleteMany({ where: { bookingId: booking.id } }),
+      prisma.trip.update({ where: { id: booking.tripId }, data: { availableSeats: { increment: booking.pax } } }),
+      prisma.booking.delete({ where: { id: booking.id } }),
+    ]);
+
+    if (booking.user?.email) {
+      const { sendBookingCancellation } = require('../services/mailer');
+      sendBookingCancellation(booking, booking.trip, booking.user, reason).catch(e => console.warn('Mail KO:', e.message));
+    }
+    res.json({ message: 'Réservation supprimée et client notifié' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── POST /api/bookings/:id/resend-email — Renvoyer l'email de confirmation ──
+router.post('/:id/resend-email', authenticate, requireRole('ADMIN', 'AGENCY'), async (req, res) => {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where:   { id: req.params.id },
+      include: { trip: { include: { from: true, to: true, agency: true } }, user: true },
+    });
+    if (!booking) return res.status(404).json({ error: 'Réservation introuvable' });
+    if (!booking.user?.email) return res.status(400).json({ error: 'Pas d\'e-mail enregistré pour ce client' });
+
+    if (req.user.role === 'AGENCY' && req.user.agencyId !== booking.trip.agencyId) {
+      return res.status(403).json({ error: 'Vous ne gérez pas cette agence' });
+    }
+
+    const { sendBookingConfirmation } = require('../services/mailer');
+    await sendBookingConfirmation(booking, booking.trip, booking.user);
+    res.json({ message: `✅ E-mail de confirmation renvoyé à ${booking.user.email}` });
+  } catch (e) {
+    res.status(500).json({ error: 'Erreur envoi e-mail : ' + e.message });
   }
 });
 
